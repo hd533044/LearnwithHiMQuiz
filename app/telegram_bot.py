@@ -27,12 +27,29 @@ NAME, TARGET_EXAM, PHONE_OTP, AGE_STEP, GENDER_STEP = range(5)
 
 BOT_BRANDING_HEADER = "📚 Learn with HiM Quiz Book\n*(The best in class Quiz Creator by Himanshu Sir)* ❤️\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+# Helper for standard main menu keyboard buttons
+def get_main_menu_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            ["🚀 /quiz", "📊 /help"],
+            ["👤 /myprofile", "🥇 /myrank"],
+            ["🎓 /mywholestate", "🏆 /toppersname"]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
 # =====================================================================
 #                        ONBOARDING WIZARD
 # =====================================================================
 
 async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    args = context.args
+
+    # Check if user came via deep link from group (?start=quiz)
+    is_deep_link_quiz = bool(args and args[0] == "quiz")
+
     try:
         raw_profile = get_user_profile(user.id)
         profile = dict(raw_profile) if raw_profile else {}
@@ -41,24 +58,30 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
             full_name = profile.get("full_name") or user.full_name
             target_exam = profile.get("target_exam") or "General"
             
+            # If triggered via ?start=quiz deep link, launch quiz directly!
+            if is_deep_link_quiz:
+                await quiz_command(update, context)
+                return ConversationHandler.END
+
             msg = (
-                f"{BOT_BRANDING_HEADER}\n"
+                f"{BOT_BRANDING_HEADER}\n\n"
                 f"👋 **Welcome back, {full_name}!**\n\n"
                 f"🎯 **Target Exam:** `{target_exam}`\n"
                 f"📊 **Daily Target Quota:** `{DAILY_QUESTION_LIMIT} Questions/day`\n\n"
-                f"🚀 **Quick Navigation:**\n"
-                f"• `/quiz` — Start a new practice test session\n"
-                f"• `/mywholestate` — View your overall performance\n"
-                f"• `/toppersname` — View global Leaderboard\n\n"
+                f"📌 **Quick Navigation:**\n"
+                f"• Use the menu keyboard below or tap any command:\n"
+                f"  └ /quiz — Start a practice test\n"
+                f"  └ /mywholestate — Academic report\n"
+                f"  └ /toppersname — Global Leaderboard\n\n"
                 f"📢 **Official Channel:** {CHANNEL_USERNAME}"
             )
-            await update.message.reply_text(msg, parse_mode="Markdown")
+            await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
             return ConversationHandler.END
     except Exception as e:
         logging.error(f"Error checking profile in start_onboarding: {e}")
 
     welcome_msg = (
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"Master Computer Awareness & Exam PYQs with **Himanshu Sir**!\n"
         f"Targeting **SSC CGL, CHSL, CAPF HCM, Delhi Police, UPSI & Railways**.\n\n"
         f"📝 **Student Registration (Step 1/5)**\n"
@@ -173,16 +196,16 @@ async def gender_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         completion_msg = (
-            f"{BOT_BRANDING_HEADER}\n"
+            f"{BOT_BRANDING_HEADER}\n\n"
             f"🎉 **Registration Complete!**\n\n"
-            f"Your profile has been created successfully.\n\n"
-            f"👉 **Type /quiz to launch your first practice session!**"
+            f"Your student profile has been created successfully.\n\n"
+            f"👉 **Tap /quiz below or use the main menu to begin practicing!**"
         )
-        await update.message.reply_text(completion_msg, reply_markup=ReplyKeyboardRemove(), parse_mode="Markdown")
+        await update.message.reply_text(completion_msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
         return ConversationHandler.END
     except Exception as e:
         logging.error(f"Error in gender_step: {e}")
-        await update.message.reply_text("Profile saved! Type /quiz to start practicing.", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("Profile saved! Type /quiz to start practicing.", reply_markup=get_main_menu_keyboard())
         return ConversationHandler.END
 
 async def cancel_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,36 +213,73 @@ async def cancel_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # =====================================================================
-#                          CORE QUIZ LOGIC
+#                           CORE QUIZ LOGIC
 # =====================================================================
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    clean_channel = CHANNEL_USERNAME.replace("@", "")
+    
+    # Inline keyboard buttons for clickable action
+    keyboard = [
+        [InlineKeyboardButton("🚀 Launch Quiz", callback_data="quick_cmd_quiz"), InlineKeyboardButton("👤 My Profile", callback_data="quick_cmd_profile")],
+        [InlineKeyboardButton("🏆 Top Leaderboard", callback_data="quick_cmd_toppers"), InlineKeyboardButton("🥇 Check Rank", callback_data="quick_cmd_rank")],
+        [InlineKeyboardButton("📈 Performance", callback_data="quick_cmd_perf"), InlineKeyboardButton("🎓 Full Report", callback_data="quick_cmd_state")],
+        [InlineKeyboardButton("📢 Join Official Channel", url=f"https://t.me/{clean_channel}")]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
     msg = (
-        f"{BOT_BRANDING_HEADER}\n"
-        f"Hello *{user.full_name}*! Welcome to the official quiz portal curated by **Himanshu Sir**.\n\n"
-        f"🤖 **Key Features:**\n"
-        f"• 📚 100% Verified, Non-Repeating Exam Questions.\n"
-        f"• 🎯 Custom Question Targets: 10, 15, 20, 25, or 30 Questions.\n"
-        f"• ⏱ Customizable Timers: 12s, 15s, 18s, or 20s per question.\n"
-        f"• ⏸ /stop & /resume test session controls.\n"
-        f"• 📈 Practice up to {DAILY_QUESTION_LIMIT} Questions daily!\n\n"
-        f"📜 **Command Directory:**\n"
-        f"• /start — Register student profile\n"
-        f"• /quiz — Launch a Computer Awareness mock test\n"
-        f"• /stop — Pause active quiz session\n"
-        f"• /resume — Resume paused quiz session\n"
-        f"• /toppersname — Public Top 10 Leaderboard\n"
-        f"• /myprofile — Student profile card\n"
-        f"• /myrank — Check global rank\n"
-        f"• /myperformance — Overall performance rating\n"
-        f"• /mywholestate — Complete academic report\n\n"
-        f"📢 Official Channel: **{CHANNEL_USERNAME}**"
+        f"{BOT_BRANDING_HEADER}\n\n"
+        f"👋 **Hello, {user.full_name}!**\n"
+        f"Welcome to your personal learning & evaluation portal.\n\n"
+        f"🤖 **Platform Features:**\n"
+        f"• 📚 100% Verified, Non-Repeating PYQs\n"
+        f"• 🎯 Question Limits: 10, 15, 20, 25, or 30 Questions\n"
+        f"• ⏱ Custom Timers: 12s, 15s, 18s, or 20s per question\n"
+        f"• ⏸ Full Session Control: /stop & /resume\n"
+        f"• 📈 Practice Quota: Up to `{DAILY_QUESTION_LIMIT}` questions daily\n\n"
+        f"📌 **Available Commands (Tap to execute):**\n"
+        f"• /quiz — Start a computer awareness mock test\n"
+        f"• /stop — Pause your active session\n"
+        f"• /resume — Resume your paused session\n"
+        f"• /myprofile — View student profile card\n"
+        f"• /myrank — View your global rank\n"
+        f"• /myperformance — Performance grading\n"
+        f"• /mywholestate — Complete academic progress report\n"
+        f"• /toppersname — Public Top 10 Leaderboard\n\n"
+        f"👇 **Tap any button below for instant access:**"
     )
-    await update.message.reply_text(msg, parse_mode="Markdown")
+    await update.message.reply_text(msg, reply_markup=markup, parse_mode="Markdown")
 
 async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    chat = update.effective_chat
+
+    # -----------------------------------------------------------------
+    # GROUP CHECK: Redirect group calls to a private URL button
+    # -----------------------------------------------------------------
+    if chat and chat.type in ["group", "supergroup"]:
+        bot_username = context.bot.username
+        private_quiz_url = f"https://t.me/{bot_username}?start=quiz"
+        
+        keyboard = [
+            [InlineKeyboardButton("🚀 Click here to start your quiz in private chat!", url=private_quiz_url)]
+        ]
+        markup = InlineKeyboardMarkup(keyboard)
+
+        group_msg = (
+            f"{BOT_BRANDING_HEADER}\n\n"
+            f"📚 **New Practice Session Available!**\n\n"
+            f"Hey {user.mention_markdown()}! To prevent screen clutter in the group, "
+            f"click the button below to launch your personal, uninterrupted quiz in private chat:"
+        )
+        await update.message.reply_text(group_msg, reply_markup=markup, parse_mode="Markdown")
+        return
+
+    # -----------------------------------------------------------------
+    # PRIVATE CHAT QUIZ FLOW
+    # -----------------------------------------------------------------
     raw_profile = get_user_profile(user.id)
     profile = dict(raw_profile) if raw_profile else {}
     
@@ -240,7 +300,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"📊 **Quiz Setup — Select Question Target (Step 1/2)**\n\n"
         f"Select the number of questions for this test session:\n"
         f"*(Remaining daily quota: `{DAILY_QUESTION_LIMIT - attempted_today}` / `{DAILY_QUESTION_LIMIT}`)*",
@@ -263,7 +323,7 @@ async def quiz_count_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     markup = InlineKeyboardMarkup(keyboard)
     
     await query.edit_message_text(
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"⏱ **Quiz Setup — Select Timer (Step 2/2)**\n\n"
         f"Selected: `{count} Questions`\n\n"
         f"Choose timer duration per question:",
@@ -287,7 +347,7 @@ async def quiz_timer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     await query.edit_message_text(
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"🚀 **Session Started!**\n\n"
         f"🎯 Target: `{session['total']} Questions`\n"
         f"⏱ Timer: `{timer_sec}s / Question`\n\n"
@@ -463,7 +523,7 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
     markup = InlineKeyboardMarkup(keyboard)
 
     banner = (
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"🏆 **Test Completed Successfully!**\n\n"
         f"🎖 **Total Score:** `{score} / {total}`\n"
         f"✅ **Correct Answers:** `{session['correct_count']} / {total}`\n"
@@ -480,14 +540,13 @@ async def quick_command_callback(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
     data = query.data
     
-    # Send as new message to ensure clean interface interaction
     chat_id = query.message.chat_id
     
     if data == "quick_cmd_quiz":
-        # Simulate /quiz command execution
         class DummyUpdate:
             def __init__(self, uid, cid):
-                self.effective_user = type('obj', (object,), {'id': uid})
+                self.effective_user = type('obj', (object,), {'id': uid, 'mention_markdown': lambda: query.from_user.mention_markdown()})
+                self.effective_chat = type('obj', (object,), {'id': cid, 'type': query.message.chat.type})
                 self.message = type('obj', (object,), {'chat_id': cid, 'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=cid, text=text, **kwargs)})
         
         fake_update = DummyUpdate(query.from_user.id, chat_id)
@@ -551,7 +610,7 @@ async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
         
     header = (
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"🏆 **Top 10 Leaderboard Scholars**\n\n"
     )
     lines = []
@@ -600,7 +659,7 @@ async def myprofile_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     msg = (
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"👤 **Student Profile Card**\n\n"
         f"• **Name:** {profile.get('full_name', user.full_name)}\n"
         f"• **Username:** @{profile.get('username') or 'N/A'}\n"
@@ -624,7 +683,7 @@ async def myperformance_handler(update: Update, context: ContextTypes.DEFAULT_TY
     rating = "🌟 Excellent" if score_out_of_100 >= 80 else "👍 Good" if score_out_of_100 >= 50 else "⚠️ Needs Improvement"
     
     msg = (
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"📊 **Performance Analytics**\n\n"
         f"• **Average Rating:** `{score_out_of_100} / 100`\n"
         f"• **Mock Tests Completed:** `{total_mocks}`\n"
@@ -646,7 +705,7 @@ async def mywholestate_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     overall_rank = calculate_user_rank(user.id)
     
     msg = (
-        f"{BOT_BRANDING_HEADER}\n"
+        f"{BOT_BRANDING_HEADER}\n\n"
         f"🎓 **Student Progress Report**\n\n"
         f"👤 **Student Details:**\n"
         f"• **Name:** {profile.get('full_name', user.full_name)}\n"
