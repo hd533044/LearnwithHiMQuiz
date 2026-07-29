@@ -1,0 +1,74 @@
+[
+  {
+    "id": 10001,
+    "question": "Which component of the CPU executes arithmetic calculations and logical comparisons?",
+    "options": [
+      "Arithmetic Logic Unit (ALU)",
+      "Control Unit (CU)",
+      "Register",
+      "System Clock"
+    ],
+    "correct_option": 0,
+    "explanation": "ALU performs all arithmetic (+, -, *, /) and logical comparisons."
+  },
+  {
+    "id": 10002,
+    "question": "An IPv4 address consists of how many bits?",
+    "options": [
+      "16 bits",
+      "32 bits",
+      "64 bits",
+      "128 bits"
+    ],
+    "correct_option": 1,
+    "explanation": "IPv4 uses 32-bit logical addressing, whereas IPv6 uses 128-bit."
+  },
+  {
+    "id": 10003,
+    "question": "Which electronic switching technology was used in First Generation computers?",
+    "options": [
+      "Vacuum Tubes",
+      "Transistors",
+      "Integrated Circuits (ICs)",
+      "Microprocessors"
+    ],
+    "correct_option": 0,
+    "explanation": "First-generation computers (1940-1956) relied on Vacuum Tubes."
+  },
+  {
+    "id": 10004,
+    "question": "Which semiconductor memory can be erased by exposure to strong ultraviolet light?",
+    "options": [
+      "SRAM",
+      "DRAM",
+      "EPROM",
+      "EEPROM"
+    ],
+    "correct_option": 2,
+    "explanation": "EPROM is erased using ultraviolet (UV) light exposure."
+  },
+  {
+    "id": 10005,
+    "question": "How many total rows exist in a single worksheet of MS Excel 2010?",
+    "options": [
+      "65,536",
+      "1,048,576",
+      "16,384",
+      "1,00,000"
+    ],
+    "correct_option": 1,
+    "explanation": "MS Excel 2007 and above contain exactly 1,048,576 rows and 16,384 columns."
+  },
+  {
+    "id": 10006,
+    "question": "Malware that encrypts user files and demands monetary payment to restore access is called:",
+    "options": [
+      "Spyware",
+      "Ransomware",
+      "Trojan Horse",
+      "Keylogger"
+    ],
+    "correct_option": 1,
+    "explanation": "Ransomware encrypts victim data and demands ransom payment."
+  }
+]

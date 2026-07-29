@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "question": "Which component is known as the Brain of the computer?",
+    "options": [
+      "RAM",
+      "CPU",
+      "Hard Disk",
+      "Power Supply"
+    ],
+    "correct_option": 1,
+    "explanation": "Practice computer awareness daily!"
+  },
+  {
+    "id": 2,
+    "question": "What does HTTP stand for in networking?",
+    "options": [
+      "HyperText Transfer Protocol",
+      "HighText Transfer Path",
+      "Hyper Transfer Text Process",
+      "Heavy Text Transfer Protocol"
+    ],
+    "correct_option": 0,
+    "explanation": "Practice computer awareness daily!"
+  }
+]

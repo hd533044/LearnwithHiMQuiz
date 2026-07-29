@@ -1,0 +1,7 @@
+services:
+  - type: worker
+    name: computer-quiz-telegram-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run.py
+    autoDeploy: true

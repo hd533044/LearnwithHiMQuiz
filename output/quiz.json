@@ -1,0 +1,222 @@
+[
+    {
+        "question": "Which function key is used to activate the Spelling and Grammar check in Microsoft Word?",
+        "options": [
+            "F5",
+            "F7",
+            "F12",
+            "Shift + F7"
+        ],
+        "correct_answer": 1,
+        "explanation": "F7 opens the Spelling and Grammar check dialog box in MS Word, whereas Shift + F7 opens the Thesaurus."
+    },
+    {
+        "question": "Static RAM (SRAM) is primarily used in the construction of which type of high-speed memory?",
+        "options": [
+            "Hard Disk Drive",
+            "Cache Memory",
+            "Read-Only Memory",
+            "Virtual Memory"
+        ],
+        "correct_answer": 1,
+        "explanation": "SRAM is made of transistors, provides high speed, and is used to design Cache Memory."
+    },
+    {
+        "question": "Software instructions that are permanently stored in Read-Only Memory (ROM) during hardware production are called:",
+        "options": [
+            "Malware",
+            "Shareware",
+            "Firmware",
+            "Freeware"
+        ],
+        "correct_answer": 2,
+        "explanation": "Firmware is the operational software program embedded directly into ROM hardware devices."
+    },
+    {
+        "question": "In the computer memory hierarchy, which memory has the fastest access speed?",
+        "options": [
+            "Cache Memory",
+            "RAM",
+            "Register Memory",
+            "Solid State Drive"
+        ],
+        "correct_answer": 2,
+        "explanation": "CPU Registers reside directly inside the processor, giving them the highest speed in the memory hierarchy."
+    },
+    {
+        "question": "Which keyboard shortcut is used to insert a hyperlink in Microsoft Word?",
+        "options": [
+            "Ctrl + H",
+            "Ctrl + K",
+            "Ctrl + L",
+            "Ctrl + M"
+        ],
+        "correct_answer": 1,
+        "explanation": "Ctrl + K is the standard shortcut key to open the Insert Hyperlink dialog box."
+    },
+    {
+        "question": "The extra margin space added to the side or top of a page intended for binding is known as:",
+        "options": [
+            "Mirror Margin",
+            "Gutter Margin",
+            "Header Margin",
+            "Footer Margin"
+        ],
+        "correct_answer": 1,
+        "explanation": "Gutter margin adds extra space to the binding side of a document so text isn't obscured when bound."
+    },
+    {
+        "question": "In Microsoft Excel, which function calculates the remainder of a division operation?",
+        "options": [
+            "REM()",
+            "MOD()",
+            "DIV()",
+            "INT()"
+        ],
+        "correct_answer": 1,
+        "explanation": "The MOD() function returns the remainder after a dividend is divided by a divisor."
+    },
+    {
+        "question": "Which shortcut key selects an entire row in an MS Excel worksheet?",
+        "options": [
+            "Ctrl + Spacebar",
+            "Shift + Spacebar",
+            "Ctrl + Row",
+            "Alt + Spacebar"
+        ],
+        "correct_answer": 1,
+        "explanation": "Shift + Spacebar selects the active row, while Ctrl + Spacebar selects the active column."
+    },
+    {
+        "question": "Which PowerPoint view displays all slides as thumbnails, making it easy to reorder them?",
+        "options": [
+            "Normal View",
+            "Notes Page View",
+            "Slide Sorter View",
+            "Reading View"
+        ],
+        "correct_answer": 2,
+        "explanation": "Slide Sorter view gives a thumbnail overview of all slides in the presentation for quick reordering."
+    },
+    {
+        "question": "Which keyboard shortcut key inserts a new slide into an existing MS PowerPoint presentation?",
+        "options": [
+            "Ctrl + N",
+            "Ctrl + M",
+            "Ctrl + S",
+            "Shift + N"
+        ],
+        "correct_answer": 1,
+        "explanation": "Ctrl + M inserts a new slide in PowerPoint, whereas Ctrl + N opens a new presentation file."
+    },
+    {
+        "question": "Software that repeatedly displays pop-ups asking the user to register or buy a paid version is called:",
+        "options": [
+            "Freeware",
+            "Nagware",
+            "Firmware",
+            "Shareware"
+        ],
+        "correct_answer": 1,
+        "explanation": "Nagware (or annoyware) continually pops up notices to encourage the user to purchase a license."
+    },
+    {
+        "question": "A self-replicating malicious program that spreads across computer networks without requiring human action is a:",
+        "options": [
+            "Trojan Horse",
+            "Worm",
+            "Macro Virus",
+            "Spyware"
+        ],
+        "correct_answer": 1,
+        "explanation": "A Worm is standalone malware that replicates itself to spread to other computers on a network."
+    },
+    {
+        "question": "Which network protocol is dedicated to sending/transmitting outgoing emails?",
+        "options": [
+            "POP3",
+            "IMAP",
+            "SMTP",
+            "MIME"
+        ],
+        "correct_answer": 2,
+        "explanation": "SMTP (Simple Mail Transfer Protocol) is used for sending outgoing email messages across networks."
+    },
+    {
+        "question": "What is the total length of an IPv4 address in bits?",
+        "options": [
+            "16 bits",
+            "32 bits",
+            "64 bits",
+            "128 bits"
+        ],
+        "correct_answer": 1,
+        "explanation": "IPv4 uses a 32-bit address structure (4 octets), whereas IPv6 uses a 128-bit structure."
+    },
+    {
+        "question": "In the 7-layer OSI Model, data encryption and compression are performed by the:",
+        "options": [
+            "Application Layer",
+            "Presentation Layer",
+            "Session Layer",
+            "Transport Layer"
+        ],
+        "correct_answer": 1,
+        "explanation": "The Presentation Layer (Layer 6) manages formatting, translation, data compression, and encryption."
+    },
+    {
+        "question": "Which group of SQL commands includes CREATE, ALTER, DROP, and TRUNCATE?",
+        "options": [
+            "DML",
+            "DDL",
+            "DCL",
+            "TCL"
+        ],
+        "correct_answer": 1,
+        "explanation": "DDL (Data Definition Language) statements are used to define and modify the database schema."
+    },
+    {
+        "question": "A column in a relational table that references the primary key of another table is known as a:",
+        "options": [
+            "Candidate Key",
+            "Super Key",
+            "Foreign Key",
+            "Composite Key"
+        ],
+        "correct_answer": 2,
+        "explanation": "A Foreign Key points to a Primary Key in another table to establish a relational link between them."
+    },
+    {
+        "question": "Second-generation computers replaced vacuum tubes with which electronic component?",
+        "options": [
+            "Microprocessors",
+            "Integrated Circuits",
+            "Transistors",
+            "Vacuum Valves"
+        ],
+        "correct_answer": 2,
+        "explanation": "Transistors were introduced in 2nd generation computers, replacing bulky 1st generation vacuum tubes."
+    },
+    {
+        "question": "Which of the following printers is classified as a Non-Impact printer?",
+        "options": [
+            "Dot Matrix Printer",
+            "Daisy Wheel Printer",
+            "Laser Printer",
+            "Line Printer"
+        ],
+        "correct_answer": 2,
+        "explanation": "Laser printers use toner powder and electrostatic technology without physical impacts on paper."
+    },
+    {
+        "question": "Which standard defined by IEEE governs Wireless Local Area Networks (Wi-Fi)?",
+        "options": [
+            "IEEE 802.15",
+            "IEEE 802.11",
+            "IEEE 802.16",
+            "IEEE 802.3"
+        ],
+        "correct_answer": 1,
+        "explanation": "IEEE 802.11 is the set of standard specifications for Wireless Local Area Networks (Wi-Fi)."
+    }
+]
