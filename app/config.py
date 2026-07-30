@@ -1,4 +1,5 @@
 import os
+import logging
 
 # Base directory definition
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -7,8 +8,13 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 # Ensure data directory exists
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Telegram Bot Configuration
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+# Telegram Bot Configuration with hardcoded fallback if env var is delayed
+DEFAULT_TOKEN = "8699323927:AAHr23eP9sOBRRcD0BFKKMwy_PK7kgc-MZo"
+BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip() or DEFAULT_TOKEN
+
+if not BOT_TOKEN:
+    logging.warning("⚠️ BOT_TOKEN IS EMPTY! Please verify environment settings on Render.")
+
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@learnwithhim")
 YOUTUBE_CHANNEL_URL = os.getenv("YOUTUBE_CHANNEL_URL", "https://www.youtube.com/@learnwithhim")
 
