@@ -1,7 +1,6 @@
 import logging
 import asyncio
-from datetime import datetime, time, timedelta
-import zoneinfo
+from datetime import datetime, timedelta
 from telegram import (
     Update, Poll, InlineKeyboardMarkup, InlineKeyboardButton, 
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, BotCommand
@@ -38,14 +37,11 @@ BOT_BRANDING_HEADER = "📚 Learn with HiM Quiz Book\n*(The best in class Quiz C
 NEGATIVE_KEYWORDS = ["bad", "worst", "useless", "trash", "fake", "hate", "terrible", "waste", "horrible", "fraud", "stupid"]
 
 # ---------------------------------------------------------------------
-# IST TIME & QUOTA HELPERS
+# SAFE IST TIME & QUOTA HELPERS (No zoneinfo required)
 # ---------------------------------------------------------------------
 def get_ist_now():
-    """Returns current datetime in Indian Standard Time (IST)."""
-    try:
-        return datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
-    except Exception:
-        return datetime.utcnow() + timedelta(hours=5, minutes=30)
+    """Returns current datetime in Indian Standard Time (UTC + 5:30)."""
+    return datetime.utcnow() + timedelta(hours=5, minutes=30)
 
 def get_time_until_reset():
     """Calculates live countdown until next 11:11 PM IST reset."""
@@ -336,7 +332,6 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = user.id
     today_str = get_ist_now().strftime("%Y-%m-%d")
 
-    # Real-time Telegram Membership Cross-Verification
     is_tg_member = await check_telegram_membership(user_id, context)
 
     if not is_tg_member:
@@ -349,7 +344,6 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    # Grant Verification & Log Loyalty
     VERIFIED_SUBSCRIBERS.add(user_id)
     BONUS_LIMITS[user_id] = 10
     BONUS_CLAIM_LOGS[user_id] = today_str
