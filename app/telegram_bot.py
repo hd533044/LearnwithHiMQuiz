@@ -120,7 +120,10 @@ def get_universal_inline_menu():
         ],
         [
             InlineKeyboardButton("💬 Student Feedback", callback_data="quick_cmd_feedback"),
-            InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{clean_channel}")
+            InlineKeyboardButton("📢 Join Telegram", url=f"https://t.me/{clean_channel}")
+        ],
+        [
+            InlineKeyboardButton("📺 Subscribe YouTube Channel", url=YOUTUBE_CHANNEL_URL)
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -905,7 +908,9 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
         f"✅ **Correct Answers:** `{session['correct_count']} / {total}`\n"
         f"⏭ **Skipped Questions:** `{session['skipped_count']}`\n"
         f"🎯 **Accuracy Rate:** `{accuracy}%`\n\n"
-        f"🌟 *Great job! Consistent daily practice with Himanshu Sir ensures top exam rank.*"
+        f"🌟 *Great job! Consistent daily practice with Himanshu Sir ensures top exam rank.*\n\n"
+        f"📢 **Join Telegram:** {CHANNEL_USERNAME}\n"
+        f"📺 **Subscribe YouTube:** {YOUTUBE_CHANNEL_URL}"
     )
     await context.bot.send_message(
         chat_id=chat_id, 
@@ -1028,7 +1033,6 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(full_admin_report, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
         except Exception as msg_err:
             logging.warning(f"Markdown delivery failed in admin_command, falling back to plain text: {msg_err}")
-            # Plain text fallback prevents silent failures
             plain_report = full_admin_report.replace("**", "").replace("`", "").replace("*(", "").replace(")*", "")
             if len(plain_report) > 4000:
                 for chunk in [plain_report[i:i+3800] for i in range(0, len(plain_report), 3800)]:

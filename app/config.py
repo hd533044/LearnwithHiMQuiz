@@ -5,7 +5,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "8699323927:AAHr23eP9sOBRRCdOBFKKMwy_PK7
 
 # Official Channels
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@learnwithhim")
-YOUTUBE_CHANNEL_URL = os.environ.get("YOUTUBE_CHANNEL_URL", "https://youtube.com/learnwithhim")
+YOUTUBE_CHANNEL_URL = os.environ.get("YOUTUBE_CHANNEL_URL", "https://www.youtube.com/@learnwithhim")
 
 # Database File & Directory Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
