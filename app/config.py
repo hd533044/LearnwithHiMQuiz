@@ -1,13 +1,13 @@
 import os
 
-# Telegram Bot Token
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+# Telegram Bot Token (with default fallback)
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8699323927:AAHr23eP9sOBRRCdOBFKKMwy_PK7kgc-MZo").strip()
 
 # Official Channels
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@learnwithhim")
 YOUTUBE_CHANNEL_URL = os.environ.get("YOUTUBE_CHANNEL_URL", "https://youtube.com/learnwithhim")
 
-# Database & Data Directory Variables (Fixes DATA_DIR & DB_FILE ImportErrors)
+# Database & Data Directory Variables
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
 DB_FILE = os.environ.get("DB_FILE", os.path.join(DATA_DIR, "quiz_bot.db"))
