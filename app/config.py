@@ -1,13 +1,11 @@
 import os
 
-BOT_TOKEN = "8699323927:AAHr23eP9sOBRRCdOBFKKMwy_PK7kgc-MZo"
-CHANNEL_USERNAME = "@learnwithhim"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@learnwithhim")
+YOUTUBE_CHANNEL_URL = os.environ.get("YOUTUBE_CHANNEL_URL", "https://youtube.com/learnwithhim")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-DB_FILE = os.path.join(DATA_DIR, "quiz_bot.db")
+# Updated Default Daily Limit to 40 Questions
+DAILY_QUESTION_LIMIT = 40
 
-DAILY_QUESTION_LIMIT = 200
-
-ADMIN_USER_ID = 123456789
-ADMIN_IDS = [ADMIN_USER_ID]
+# Admin IDs list
+ADMIN_IDS = [int(x.strip()) for x in os.environ.get("ADMIN_IDS", "").split(",") if x.strip().isdigit()]
