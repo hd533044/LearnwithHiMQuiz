@@ -9,16 +9,23 @@ from telegram.ext import (
     Application, CommandHandler, PollAnswerHandler, CallbackQueryHandler, 
     ContextTypes, ConversationHandler, MessageHandler, filters
 )
-from app.config import BOT_TOKEN, CHANNEL_USERNAME, YOUTUBE_CHANNEL_URL, DAILY_QUESTION_LIMIT, ADMIN_IDS
+from app.config import (
+    BOT_TOKEN, CHANNEL_USERNAME, YOUTUBE_CHANNEL_URL, 
+    DAILY_QUESTION_LIMIT, ADMIN_IDS
+)
 from app.database import (
     init_db, save_user_profile, get_user_profile, get_today_attempts
 )
 from app.stats import get_quiz_toppers, calculate_user_rank, calculate_overall_performance
 from app.quiz_engine import start_quiz_session, get_active_session, finish_quiz_session
 
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+# Setup logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
+    level=logging.INFO
+)
 
-# Global Session & Data Storage
+# Global Session & Timer Storage
 POLL_SESSION_MAP = {}
 QUIZ_SETUP_CACHE = {}
 TIMER_TASKS = {}
@@ -29,15 +36,24 @@ BONUS_LIMITS = {}            # user_id -> extra bonus question limit granted for
 VERIFIED_SUBSCRIBERS = set() # user_id set of verified loyal subscribers
 BONUS_CLAIM_LOGS = {}        # user_id -> date string of last claimed bonus
 
-# Conversation States
+# Onboarding Conversation States (5 Steps)
 NAME, TARGET_EXAM, PHONE_OTP, AGE_STEP, GENDER_STEP = range(5)
 
-BOT_BRANDING_HEADER = "📚 Learn with HiM Quiz Book\n*(The best in class Quiz Creator by Himanshu Sir)* ❤️\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+# Branding Header
+BOT_BRANDING_HEADER = (
+    "📚 Learn with HiM Quiz Book\n"
+    "*(The best in class Quiz Creator by Himanshu Sir)* ❤️\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+)
 
-NEGATIVE_KEYWORDS = ["bad", "worst", "useless", "trash", "fake", "hate", "terrible", "waste", "horrible", "fraud", "stupid"]
+# Negative Sentiment Filter Keywords
+NEGATIVE_KEYWORDS = [
+    "bad", "worst", "useless", "trash", "fake", 
+    "hate", "terrible", "waste", "horrible", "fraud", "stupid"
+]
 
 # ---------------------------------------------------------------------
-# SAFE IST TIME & QUOTA HELPERS (No zoneinfo required)
+# SAFE IST TIME & QUOTA HELPERS (Crash-proof UTC+5:30 Math)
 # ---------------------------------------------------------------------
 def get_ist_now():
     """Returns current datetime in Indian Standard Time (UTC + 5:30)."""
@@ -55,7 +71,7 @@ def get_time_until_reset():
     return f"{hours}h {minutes}m {seconds}s"
 
 def get_effective_daily_limit(user_id: int) -> int:
-    """Calculates base limit + any cross-verified bonus limits granted for today."""
+    """Calculates base limit (40) + any bonus limits granted for today."""
     bonus = BONUS_LIMITS.get(user_id, 0)
     return DAILY_QUESTION_LIMIT + bonus
 
@@ -63,6 +79,7 @@ def get_effective_daily_limit(user_id: int) -> int:
 # UI TOOLKIT: Persistent Reply Menu Keyboard for Typing Bar
 # ---------------------------------------------------------------------
 def get_main_menu_keyboard():
+    """Provides persistent keyboard buttons in the typing bar for all users."""
     return ReplyKeyboardMarkup(
         [
             ["/quiz 🚀", "/help 📊"],
@@ -79,6 +96,7 @@ def get_main_menu_keyboard():
 # UI TOOLKIT: Universal Touch/Inline Action Buttons Under Messages
 # ---------------------------------------------------------------------
 def get_universal_inline_menu():
+    """Generates interactive touch buttons attached directly below responses."""
     clean_channel = CHANNEL_USERNAME.replace("@", "")
     keyboard = [
         [
@@ -121,6 +139,7 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     args = context.args
 
+    # Check if user came via deep link from group (?start=quiz)
     is_deep_link_quiz = bool(args and args[0] == "quiz")
 
     try:
@@ -131,6 +150,7 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
             full_name = profile.get("full_name") or user.full_name
             target_exam = profile.get("target_exam") or "General"
             
+            # If triggered via deep link, launch quiz directly
             if is_deep_link_quiz:
                 await quiz_command(update, context)
                 return ConversationHandler.END
@@ -153,8 +173,15 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"  └ /mywholestate — Academic progress report\n\n"
                 f"📢 **Official Channel:** {CHANNEL_USERNAME}"
             )
-            await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
-            await update.message.reply_text("👇 **Interactive Command Options:**", reply_markup=get_universal_inline_menu())
+            await update.message.reply_text(
+                msg, 
+                reply_markup=get_main_menu_keyboard(), 
+                parse_mode="Markdown"
+            )
+            await update.message.reply_text(
+                "👇 **Interactive Command Touch Menu:**", 
+                reply_markup=get_universal_inline_menu()
+            )
             return ConversationHandler.END
     except Exception as e:
         logging.error(f"Error checking profile in start_onboarding: {e}")
@@ -280,8 +307,15 @@ async def gender_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Your student profile has been created successfully.\n\n"
             f"👉 **Tap /quiz below or use the main menu to begin practicing!**"
         )
-        await update.message.reply_text(completion_msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
-        await update.message.reply_text("👇 **Interactive Command Touch Menu:**", reply_markup=get_universal_inline_menu())
+        await update.message.reply_text(
+            completion_msg, 
+            reply_markup=get_main_menu_keyboard(), 
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text(
+            "👇 **Interactive Command Options:**", 
+            reply_markup=get_universal_inline_menu()
+        )
         return ConversationHandler.END
     except Exception as e:
         logging.error(f"Error in gender_step: {e}")
@@ -332,6 +366,7 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = user.id
     today_str = get_ist_now().strftime("%Y-%m-%d")
 
+    # Real-time Telegram Membership Cross-Verification
     is_tg_member = await check_telegram_membership(user_id, context)
 
     if not is_tg_member:
@@ -344,6 +379,7 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
+    # Grant Verification & Log Loyalty
     VERIFIED_SUBSCRIBERS.add(user_id)
     BONUS_LIMITS[user_id] = 10
     BONUS_CLAIM_LOGS[user_id] = today_str
@@ -373,11 +409,17 @@ async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT
     str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
 
     if str(user_id).strip() not in str_admin_ids:
-        await update.message.reply_text("🛑 **Access Denied:** Reserved for System Administrators.", reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text(
+            "🛑 **Access Denied:** Reserved for System Administrators.", 
+            reply_markup=get_main_menu_keyboard()
+        )
         return
 
     if not VERIFIED_SUBSCRIBERS:
-        await update.message.reply_text("📊 No users have claimed or cross-verified their YouTube/Telegram subscription today yet.", reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text(
+            "📊 No users have claimed or cross-verified their YouTube/Telegram subscription today yet.", 
+            reply_markup=get_main_menu_keyboard()
+        )
         return
 
     lines = []
@@ -582,6 +624,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
 
+    # Group Redirection Logic
     if chat and chat.type in ["group", "supergroup"]:
         bot_username = context.bot.username
         private_quiz_url = f"https://t.me/{bot_username}?start=quiz"
@@ -600,6 +643,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(group_msg, reply_markup=markup, parse_mode="Markdown")
         return
 
+    # Private Chat Flow
     raw_profile = get_user_profile(user.id)
     profile = dict(raw_profile) if raw_profile else {}
     
@@ -1052,6 +1096,7 @@ async def mywholestate_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 # =====================================================================
 
 async def post_init(application: Application):
+    """Registers official command menu so the Menu button appears in typing bar for ALL users."""
     commands = [
         BotCommand("quiz", "🚀 Start Computer Quiz"),
         BotCommand("remaininglimit", "⏳ Check Limit & Claim +10"),
@@ -1103,7 +1148,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("myperformance", myperformance_handler))
     app.add_handler(CommandHandler("mywholestate", mywholestate_handler))
     
-    # Text Regex Handlers for Bottom Bar Buttons
+    # Text Regex Handlers for Reply Keyboard Buttons
     app.add_handler(MessageHandler(filters.Regex(r"^/quiz"), quiz_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/remaininglimit"), remaininglimit_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/help"), help_command))
