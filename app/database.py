@@ -56,6 +56,17 @@ def init_db():
             last_boost_date DATE
         )
     ''')
+
+    # Non-Repeating Question Tracking Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS seen_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            question_id TEXT,
+            seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, question_id)
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -130,12 +141,46 @@ def record_quiz_result(user_id, questions_attempted, correct_answers, score):
 def save_quiz_result(user_id, questions_attempted, correct_answers, score):
     increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
 
+# Non-Repeating Question Tracking Functions
+def get_seen_question_ids(user_id):
+    """Returns a set of question IDs already attempted by the user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT question_id FROM seen_questions WHERE user_id = ?", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return {str(r['question_id']) for r in rows}
+
+def save_seen_question_id(user_id, question_id):
+    """Marks a question ID as seen for the given user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR IGNORE INTO seen_questions (user_id, question_id)
+        VALUES (?, ?)
+    ''', (user_id, str(question_id)))
+    conn.commit()
+    conn.close()
+
+def save_seen_question_ids(user_id, question_ids):
+    """Batch marks multiple question IDs as seen for the user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for qid in question_ids:
+        cursor.execute('''
+            INSERT OR IGNORE INTO seen_questions (user_id, question_id)
+            VALUES (?, ?)
+        ''', (user_id, str(qid)))
+    conn.commit()
+    conn.close()
+
 def reset_user_quiz_data(user_id):
-    """Clears all quiz attempts and bonus limit logs for a user."""
+    """Clears all quiz attempts, bonus limit logs, and seen questions history for a user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM quiz_attempts WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM bonus_quota WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM seen_questions WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
 
