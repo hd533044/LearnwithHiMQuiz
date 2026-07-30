@@ -117,6 +117,10 @@ def increment_today_attempts(user_id, count=1, correct=0, score=0.0):
     conn.commit()
     conn.close()
 
+def record_quiz_result(user_id, questions_attempted, correct_answers, score):
+    """Alias/wrapper for recording quiz results to match quiz engine imports."""
+    increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
+
 def reset_user_quiz_data(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
