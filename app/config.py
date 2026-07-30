@@ -7,8 +7,14 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "@learnwithhim")
 YOUTUBE_CHANNEL_URL = os.environ.get("YOUTUBE_CHANNEL_URL", "https://youtube.com/learnwithhim")
 
-# Database File Path (Fixes the ImportError)
-DB_FILE = os.environ.get("DB_FILE", "quiz_bot.db")
+# Database & Data Directory Variables (Fixes DATA_DIR & DB_FILE ImportErrors)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
+DB_FILE = os.environ.get("DB_FILE", os.path.join(DATA_DIR, "quiz_bot.db"))
+
+# Ensure data directory exists on startup
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR, exist_ok=True)
 
 # Daily Question Limit Target (40 Questions)
 DAILY_QUESTION_LIMIT = 40
