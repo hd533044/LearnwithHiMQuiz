@@ -433,14 +433,17 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 #             FAIL-SAFE MASTER ADMIN COMMAND CONTROL PANEL
 # =====================================================================
 
-async def send_admin_response(target, text, reply_markup=None):
-    """Utility to safely deliver admin messages via Message or CallbackQuery context."""
-    if hasattr(target, 'message') and target.message:
-        await target.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-    elif hasattr(target, 'edit_message_text'):
-        await target.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-    elif hasattr(target, 'reply_text'):
-        await target.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+async def send_admin_response(target_obj, text: str, reply_markup=None):
+    """Universal safe sender for both direct commands and callback queries."""
+    try:
+        if isinstance(target_obj, Update) and target_obj.message:
+            await target_obj.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        elif hasattr(target_obj, 'message') and target_obj.message:
+            await target_obj.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        elif hasattr(target_obj, 'edit_message_text'):
+            await target_obj.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Error sending admin response: {e}")
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -466,11 +469,12 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(panel_msg, reply_markup=get_admin_inline_panel(), parse_mode="Markdown")
 
-async def showcontacts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def showcontacts_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     users = get_all_users()
     if not users:
-        await send_admin_response(update, "📊 No registered students found in database.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No registered students found in database.", reply_markup=get_admin_inline_panel())
         return
     
     lines = []
@@ -482,11 +486,12 @@ async def showcontacts_command(update: Update, context: ContextTypes.DEFAULT_TYP
     report = "📱 **ADMIN AUDIT — STUDENT CONTACT DIRECTORY**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" + "\n\n".join(lines)
     await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
-async def showmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def showmarks_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     users = get_all_users()
     if not users:
-        await send_admin_response(update, "📊 No quiz records found.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No quiz records found.", reply_markup=get_admin_inline_panel())
         return
     
     lines = []
@@ -500,18 +505,20 @@ async def showmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     report = "📊 **ADMIN AUDIT — STUDENT QUIZ PERFORMANCE & MARKS**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" + "\n\n".join(lines)
     await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
-async def showtoppers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def showtoppers_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     toppers = get_quiz_toppers(limit=10)
     lines = [f"{idx}. **{escape_markdown(dict(t).get('full_name', 'Student'))}** — Score: `{round(dict(t).get('avg_score', 0.0) or 0.0, 2)}`" for idx, t in enumerate(toppers, start=1)] if toppers else ["No records."]
     report = f"{BOT_BRANDING_HEADER}\n\n🏆 **Top 10 Leaderboard Scholars**\n\n" + "\n".join(lines)
     await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
-async def showgender_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def showgender_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     users = get_all_users()
     if not users:
-        await send_admin_response(update, "📊 No user data available.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No user data available.", reply_markup=get_admin_inline_panel())
         return
 
     males, females, others = 0, 0, 0
@@ -526,11 +533,12 @@ async def showgender_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     summary = f"🚻 **ADMIN DEMOGRAPHICS — GENDER REPORT**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👨 **Male Students:** `{males}`\n👩 **Female Students:** `{females}`\n⚧ **Other:** `{others}`\n👥 **Total Registered:** `{len(users)}`\n\n" + "\n".join(lines)
     await send_admin_response(update, summary, reply_markup=get_admin_inline_panel())
 
-async def showage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def showage_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     users = get_all_users()
     if not users:
-        await send_admin_response(update, "📊 No age records available.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No age records available.", reply_markup=get_admin_inline_panel())
         return
 
     under_18, group_18_25, group_25_plus = 0, 0, 0
@@ -545,11 +553,12 @@ async def showage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     summary = f"🎂 **ADMIN ANALYTICS — AGE GROUP BREAKDOWN**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👶 **Under 18 yrs:** `{under_18}`\n🎓 **18–25 yrs:** `{group_18_25}`\n💼 **25+ yrs:** `{group_25_plus}`\n👥 **Total Students:** `{len(users)}`\n\n" + "\n".join(lines)
     await send_admin_response(update, summary, reply_markup=get_admin_inline_panel())
 
-async def cleardataofuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def cleardataofuser_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     users = get_all_users()
     if not users:
-        await send_admin_response(update, "📊 No student profiles available to clear.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No student profiles available to clear.", reply_markup=get_admin_inline_panel())
         return
 
     keyboard = []
@@ -561,11 +570,12 @@ async def cleardataofuser_command(update: Update, context: ContextTypes.DEFAULT_
     markup = InlineKeyboardMarkup(keyboard)
     await send_admin_response(update, "🗑️ **SELECT A STUDENT TO RESET QUIZ DATA & DAILY QUOTA:**", reply_markup=markup)
 
-async def increaselimitofuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def increaselimitofuser_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     users = get_all_users()
     if not users:
-        await send_admin_response(update, "📊 No student profiles available.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No student profiles available.", reply_markup=get_admin_inline_panel())
         return
 
     keyboard = []
@@ -579,8 +589,9 @@ async def increaselimitofuser_command(update: Update, context: ContextTypes.DEFA
     markup = InlineKeyboardMarkup(keyboard)
     await send_admin_response(update, "⚡ **SELECT A STUDENT TO GRANT +20 DAILY QUESTION BOOST:**\n*(Max 5 boosts = +100 extra limit)*", reply_markup=markup)
 
-async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id): return
+async def addedsubscribers_command(update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    if not is_admin(user_id): return
     if not VERIFIED_SUBSCRIBERS:
         await send_admin_response(update, "📊 No users have claimed subscription bonus today.", reply_markup=get_admin_inline_panel())
         return
@@ -1159,7 +1170,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("myperformance", myperformance_handler))
     app.add_handler(CommandHandler("mywholestate", mywholestate_handler))
     
-    # Exact Robust Regex Matchers for Keyboard Buttons
+    # Text Regex Handlers for Bottom Bar Buttons
     app.add_handler(MessageHandler(filters.Regex(r"^/quiz"), quiz_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/remaininglimit"), remaininglimit_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/help"), help_command))
