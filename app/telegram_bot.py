@@ -53,7 +53,7 @@ NEGATIVE_KEYWORDS = [
 ]
 
 # ---------------------------------------------------------------------
-# SAFE IST TIME & QUOTA HELPERS (Crash-proof UTC+5:30 Math)
+# SAFE IST TIME & QUOTA HELPERS
 # ---------------------------------------------------------------------
 def get_ist_now():
     """Returns current datetime in Indian Standard Time (UTC + 5:30)."""
@@ -1148,7 +1148,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("myperformance", myperformance_handler))
     app.add_handler(CommandHandler("mywholestate", mywholestate_handler))
     
-    # Text Regex Handlers for Reply Keyboard Buttons
+    # Text Regex Handlers for Bottom Bar Buttons
     app.add_handler(MessageHandler(filters.Regex(r"^/quiz"), quiz_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/remaininglimit"), remaininglimit_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/help"), help_command))
