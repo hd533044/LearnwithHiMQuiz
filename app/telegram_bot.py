@@ -965,7 +965,7 @@ async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
         
     header = f"{BOT_BRANDING_HEADER}\n\n🏆 **Top 10 Leaderboard Scholars**\n\n"
-    lines = [f"{idx}. **{escape_markdown(t['full_name'])}** — Score: `{round(t['avg_score'], 2)}`" for idx, t in enumerate(toppers, start=1)]
+    lines = [f"{idx}. **{escape_markdown(dict(t).get('full_name', 'Student'))}** — Score: `{round(dict(t).get('avg_score', 0.0) or 0.0, 2)}`" for idx, t in enumerate(toppers, start=1)]
         
     await update.message.reply_text(header + "\n".join(lines), reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
     await update.message.reply_text("👇 **Select an option to proceed:**", reply_markup=get_universal_inline_menu())
@@ -998,18 +998,20 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines = []
         
         for idx, t in enumerate(toppers, start=1):
-            uid = t.get('user_id')
+            t_dict = dict(t) if t else {}
+            uid = t_dict.get('user_id')
             raw_p = get_user_profile(uid)
             p = dict(raw_p) if raw_p else {}
 
-            full_student_name = p.get('full_name') or t.get('full_name') or "Student"
-            username_str = f"@{t['username']}" if t.get('username') and t.get('username') != 'N/A' else "No Username"
+            full_student_name = p.get('full_name') or t_dict.get('full_name') or "Student"
+            username_val = t_dict.get('username') or p.get('username')
+            username_str = f"@{username_val}" if username_val and username_val != 'N/A' else "No Username"
             phone = p.get('phone_number') or p.get('phone') or "N/A"
             age = p.get('age') or "N/A"
             gender = p.get('gender') or "N/A"
-            target = p.get('target_exam') or t.get('target_exam') or "General"
-            avg_score = round(t.get('avg_score', 0.0), 2)
-            mocks_completed = p.get('total_mocks') or t.get('total_quizzes') or 0
+            target = p.get('target_exam') or t_dict.get('target_exam') or "General"
+            avg_score = round(t_dict.get('avg_score', 0.0) or 0.0, 2)
+            mocks_completed = p.get('total_mocks') or t_dict.get('total_quizzes') or 0
 
             student_card = (
                 f"👤 **Student #{idx}: {escape_markdown(full_student_name)}** ({escape_markdown(username_str)})\n"
