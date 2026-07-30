@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import re
 from datetime import datetime, timedelta
 from telegram import (
     Update, Poll, InlineKeyboardMarkup, InlineKeyboardButton, 
@@ -75,6 +76,12 @@ def get_effective_daily_limit(user_id: int) -> int:
     bonus = BONUS_LIMITS.get(user_id, 0)
     return DAILY_QUESTION_LIMIT + bonus
 
+def escape_markdown(text: str) -> str:
+    """Safely escapes Markdown formatting characters."""
+    if not text:
+        return "N/A"
+    return re.sub(r'([_*`\[\]])', r'\\\1', str(text))
+
 # ---------------------------------------------------------------------
 # UI TOOLKIT: Persistent Reply Menu Keyboard for Typing Bar
 # ---------------------------------------------------------------------
@@ -113,7 +120,10 @@ def get_universal_inline_menu():
         ],
         [
             InlineKeyboardButton("💬 Student Feedback", callback_data="quick_cmd_feedback"),
-            InlineKeyboardButton("📢 Join Channel", url=f"https://t.me/{clean_channel}")
+            InlineKeyboardButton("📢 Join Telegram", url=f"https://t.me/{clean_channel}")
+        ],
+        [
+            InlineKeyboardButton("📺 Subscribe YouTube Channel", url=YOUTUBE_CHANNEL_URL)
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -160,7 +170,7 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             msg = (
                 f"{BOT_BRANDING_HEADER}\n\n"
-                f"👋 **Welcome back, {full_name}!**\n\n"
+                f"👋 **Welcome back, {escape_markdown(full_name)}!**\n\n"
                 f"🎯 **Target Exam:** `{target_exam}`\n"
                 f"📊 **Daily Quota:** `{limit} Questions/day`\n"
                 f"⏳ **Quota Reset In:** `{time_left}` *(at 11:11 PM IST)*\n\n"
@@ -211,7 +221,7 @@ async def name_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
         markup = ReplyKeyboardMarkup(exams, one_time_keyboard=True, resize_keyboard=True)
         
         await update.message.reply_text(
-            f"Pleasure to onboard you, *{name_text}*! ✨\n\n"
+            f"Pleasure to onboard you, *{escape_markdown(name_text)}*! ✨\n\n"
             f"🎯 **Select Target Exam (Step 2/5)**\n"
             f"Please choose your primary target exam from the options below:",
             reply_markup=markup,
@@ -407,8 +417,9 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
+    allowed_ids = ["1091057353", "2070531704"]
 
-    if str(user_id).strip() not in str_admin_ids:
+    if str(user_id).strip() not in str_admin_ids and str(user_id).strip() not in allowed_ids:
         await update.message.reply_text(
             "🛑 **Access Denied:** Reserved for System Administrators.", 
             reply_markup=get_main_menu_keyboard()
@@ -430,7 +441,7 @@ async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT
         uname = f"@{p.get('username')}" if p.get('username') and p.get('username') != 'N/A' else "No Username"
         phone = p.get('phone_number') or p.get('phone') or "N/A"
         target = p.get('target_exam') or "General"
-        lines.append(f"{idx}. **{name}** ({uname})\n   └ ID: `{uid}` | Target: `{target}` | Phone: `{phone}`")
+        lines.append(f"{idx}. **{escape_markdown(name)}** ({escape_markdown(uname)})\n   └ ID: `{uid}` | Target: `{target}` | Phone: `{phone}`")
 
     msg = (
         f"🔐 **ADMIN AUDIT — VERIFIED SUBSCRIBERS ADDED ({len(VERIFIED_SUBSCRIBERS)})**\n"
@@ -483,9 +494,9 @@ async def feedback_callback_handler(update: Update, context: ContextTypes.DEFAUL
         
         await query.edit_message_text(
             f"{BOT_BRANDING_HEADER}\n\n"
-            f"🎉 **Thank You, {student_name}!**\n\n"
+            f"🎉 **Thank You, {escape_markdown(student_name)}!**\n\n"
             f"Your feedback has been saved successfully:\n"
-            f"💬 *\"{feedback_text}\"*",
+            f"💬 *\"{escape_markdown(feedback_text)}\"*",
             parse_mode="Markdown"
         )
         await context.bot.send_message(query.message.chat_id, "👇 **Select next option:**", reply_markup=get_universal_inline_menu())
@@ -510,7 +521,7 @@ async def feedback_callback_handler(update: Update, context: ContextTypes.DEFAUL
 
         reviews_text = []
         for idx, fb in enumerate(PUBLIC_FEEDBACK_LIST[-10:], start=1):
-            reviews_text.append(f"{idx}. **{fb['name']}**: *\"{fb['text']}\"*")
+            reviews_text.append(f"{idx}. **{escape_markdown(fb['name'])}**: *\"{escape_markdown(fb['text'])}\"*")
 
         output = (
             f"{BOT_BRANDING_HEADER}\n\n"
@@ -537,7 +548,7 @@ async def handle_custom_feedback_text(update: Update, context: ContextTypes.DEFA
     if is_negative:
         reply_msg = (
             f"{BOT_BRANDING_HEADER}\n\n"
-            f"🙏 **Thank you for your response, {student_name}.**\n\n"
+            f"🙏 **Thank you for your response, {escape_markdown(student_name)}.**\n\n"
             f"We are constantly trying our best to improve. If you faced any issues, "
             f"please reach out to **Himanshu Sir** directly in our channel: {CHANNEL_USERNAME}.\n\n"
             f"We appreciate your patience!"
@@ -548,8 +559,8 @@ async def handle_custom_feedback_text(update: Update, context: ContextTypes.DEFA
         reply_msg = (
             f"{BOT_BRANDING_HEADER}\n\n"
             f"🎉 **Feedback Received!**\n\n"
-            f"Thank you *{student_name}* for your kind words:\n"
-            f"💬 *\"{text}\"*"
+            f"Thank you *{escape_markdown(student_name)}* for your kind words:\n"
+            f"💬 *\"{escape_markdown(text)}\"*"
         )
         await update.message.reply_text(reply_msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
         await update.message.reply_text("👇 **Select next option:**", reply_markup=get_universal_inline_menu())
@@ -573,7 +584,7 @@ async def hello_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     greeting_msg = (
         f"{BOT_BRANDING_HEADER}\n\n"
-        f"👋 **Greetings & Warm Welcome, {salutation} {full_name}!** ❤️\n\n"
+        f"👋 **Greetings & Warm Welcome, {salutation} {escape_markdown(full_name)}!** ❤️\n\n"
         f"👤 **Student Info:**\n"
         f"• **Age:** `{age} years old`\n"
         f"• **Gender:** `{gender}`\n"
@@ -595,7 +606,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = (
         f"{BOT_BRANDING_HEADER}\n\n"
-        f"👋 **Hello, {user.full_name}!**\n"
+        f"👋 **Hello, {escape_markdown(user.full_name)}!**\n"
         f"Welcome to your personal learning & evaluation portal.\n\n"
         f"🤖 **Platform Features:**\n"
         f"• 📚 100% Verified, Non-Repeating PYQs\n"
@@ -897,7 +908,9 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
         f"✅ **Correct Answers:** `{session['correct_count']} / {total}`\n"
         f"⏭ **Skipped Questions:** `{session['skipped_count']}`\n"
         f"🎯 **Accuracy Rate:** `{accuracy}%`\n\n"
-        f"🌟 *Great job! Consistent daily practice with Himanshu Sir ensures top exam rank.*"
+        f"🌟 *Great job! Consistent daily practice with Himanshu Sir ensures top exam rank.*\n\n"
+        f"📢 **Join Telegram:** {CHANNEL_USERNAME}\n"
+        f"📺 **Subscribe YouTube:** {YOUTUBE_CHANNEL_URL}"
     )
     await context.bot.send_message(
         chat_id=chat_id, 
@@ -952,59 +965,87 @@ async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
         
     header = f"{BOT_BRANDING_HEADER}\n\n🏆 **Top 10 Leaderboard Scholars**\n\n"
-    lines = [f"{idx}. **{t['full_name']}** — Score: `{round(t['avg_score'], 2)}`" for idx, t in enumerate(toppers, start=1)]
+    lines = [f"{idx}. **{escape_markdown(dict(t).get('full_name', 'Student'))}** — Score: `{round(dict(t).get('avg_score', 0.0) or 0.0, 2)}`" for idx, t in enumerate(toppers, start=1)]
         
     await update.message.reply_text(header + "\n".join(lines), reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
     await update.message.reply_text("👇 **Select an option to proceed:**", reply_markup=get_universal_inline_menu())
 
+# =====================================================================
+#                 FAIL-SAFE ADMIN COMMAND HANDLER
+# =====================================================================
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    # Check against ADMIN_IDS list and both explicit Telegram IDs
     str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
+    allowed_ids = ["1091057353", "2070531704"]
     
-    if str(user_id).strip() not in str_admin_ids:
-        await update.message.reply_text("🛑 **Access Denied:** Reserved for Himanshu Sir & System Administrators.", reply_markup=get_main_menu_keyboard())
-        return
-
-    toppers = get_quiz_toppers(limit=50)
-    if not toppers:
-        await update.message.reply_text("📊 No student records available in database yet.", reply_markup=get_main_menu_keyboard())
-        return
-
-    header = "🔐 **ADMIN MASTER DASHBOARD — ALL REGISTERED STUDENTS**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    lines = []
-    
-    for idx, t in enumerate(toppers, start=1):
-        uid = t.get('user_id')
-        raw_p = get_user_profile(uid)
-        p = dict(raw_p) if raw_p else {}
-
-        username_str = f"@{t['username']}" if t.get('username') and t.get('username') != 'N/A' else "No Username"
-        phone = p.get('phone_number') or p.get('phone') or "N/A"
-        age = p.get('age') or "N/A"
-        gender = p.get('gender') or "N/A"
-        target = p.get('target_exam') or t.get('target_exam') or "General"
-        avg_score = round(t.get('avg_score', 0.0), 2)
-        mocks_completed = p.get('total_mocks') or t.get('total_quizzes') or 0
-
-        student_card = (
-            f"👤 **Student #{idx}: {t.get('full_name')}** ({username_str})\n"
-            f" └ **ID:** `{uid}`\n"
-            f" └ **Target Exam:** `{target}`\n"
-            f" └ **Age / Gender:** `{age}` / `{gender}`\n"
-            f" └ **Phone:** `{phone}`\n"
-            f" └ **Tests Completed:** `{mocks_completed}` | **Avg Score:** `{avg_score}`\n"
-            f"───────────────────────────────"
+    if str(user_id).strip() not in str_admin_ids and str(user_id).strip() not in allowed_ids:
+        await update.message.reply_text(
+            "🛑 **Access Denied:** Reserved for Himanshu Sir & System Administrators.", 
+            reply_markup=get_main_menu_keyboard()
         )
-        lines.append(student_card)
+        return
 
-    full_admin_report = header + "\n\n".join(lines)
+    try:
+        toppers = get_quiz_toppers(limit=50)
+        if not toppers:
+            await update.message.reply_text("📊 No student records available in database yet.", reply_markup=get_main_menu_keyboard())
+            return
 
-    if len(full_admin_report) > 4000:
-        for chunk in [full_admin_report[i:i+3800] for i in range(0, len(full_admin_report), 3800)]:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-        await update.message.reply_text("✅ End of Master Student Report.", reply_markup=get_main_menu_keyboard())
-    else:
-        await update.message.reply_text(full_admin_report, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
+        header = "🔐 **ADMIN MASTER DASHBOARD — ALL REGISTERED STUDENTS**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        lines = []
+        
+        for idx, t in enumerate(toppers, start=1):
+            t_dict = dict(t) if t else {}
+            uid = t_dict.get('user_id')
+            raw_p = get_user_profile(uid)
+            p = dict(raw_p) if raw_p else {}
+
+            full_student_name = p.get('full_name') or t_dict.get('full_name') or "Student"
+            username_val = t_dict.get('username') or p.get('username')
+            username_str = f"@{username_val}" if username_val and username_val != 'N/A' else "No Username"
+            phone = p.get('phone_number') or p.get('phone') or "N/A"
+            age = p.get('age') or "N/A"
+            gender = p.get('gender') or "N/A"
+            target = p.get('target_exam') or t_dict.get('target_exam') or "General"
+            avg_score = round(t_dict.get('avg_score', 0.0) or 0.0, 2)
+            mocks_completed = p.get('total_mocks') or t_dict.get('total_quizzes') or 0
+
+            student_card = (
+                f"👤 **Student #{idx}: {escape_markdown(full_student_name)}** ({escape_markdown(username_str)})\n"
+                f" └ **Telegram ID:** `{uid}`\n"
+                f" └ **Target Exam:** `{escape_markdown(target)}`\n"
+                f" └ **Age / Gender:** `{age}` / `{gender}`\n"
+                f" └ **Phone Number:** `{phone}`\n"
+                f" └ **Tests Completed:** `{mocks_completed}` | **Avg Score:** `{avg_score}`\n"
+                f"───────────────────────────────"
+            )
+            lines.append(student_card)
+
+        full_admin_report = header + "\n\n".join(lines)
+
+        try:
+            if len(full_admin_report) > 4000:
+                for chunk in [full_admin_report[i:i+3800] for i in range(0, len(full_admin_report), 3800)]:
+                    await update.message.reply_text(chunk, parse_mode="Markdown")
+                await update.message.reply_text("✅ End of Master Student Report.", reply_markup=get_main_menu_keyboard())
+            else:
+                await update.message.reply_text(full_admin_report, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
+        except Exception as msg_err:
+            logging.warning(f"Markdown delivery failed in admin_command, falling back to plain text: {msg_err}")
+            plain_report = full_admin_report.replace("**", "").replace("`", "").replace("*(", "").replace(")*", "")
+            if len(plain_report) > 4000:
+                for chunk in [plain_report[i:i+3800] for i in range(0, len(plain_report), 3800)]:
+                    await update.message.reply_text(chunk)
+                await update.message.reply_text("✅ End of Master Student Report.", reply_markup=get_main_menu_keyboard())
+            else:
+                await update.message.reply_text(plain_report, reply_markup=get_main_menu_keyboard())
+
+    except Exception as general_err:
+        logging.error(f"Error in admin_command execution: {general_err}")
+        await update.message.reply_text(f"⚠️ Error loading admin dashboard: {general_err}", reply_markup=get_main_menu_keyboard())
 
 # =====================================================================
 #                          STATISTICS & PROFILE
@@ -1109,6 +1150,7 @@ async def post_init(application: Application):
         BotCommand("mywholestate", "🎓 Complete Report"),
         BotCommand("toppersname", "🏆 Global Leaderboard"),
         BotCommand("addedsubscribers", "🔐 Admin Subscriber Audit"),
+        BotCommand("admin", "🔐 Master Admin Dashboard"),
         BotCommand("stop", "⏸ Pause Active Quiz"),
         BotCommand("resume", "▶️ Resume Quiz")
     ]
