@@ -162,10 +162,10 @@ def get_admin_inline_panel():
     return InlineKeyboardMarkup(keyboard)
 
 # ---------------------------------------------------------------------
-# MANDATORY PROFILE VERIFICATION GUARD
+# MANDATORY PROFILE VERIFICATION GUARD (FAIL-SAFE)
 # ---------------------------------------------------------------------
 async def ensure_profile_completed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Verifies that the user has completed registration. Admins bypass this check safely."""
+    """Verifies that the user has completed registration. Admins bypass safely."""
     user = update.effective_user
     if not user:
         return False
@@ -241,16 +241,16 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🎯 **Target Exam:** `{target_exam}`\n"
                 f"📊 **Daily Quota:** `{limit} Questions/day`\n"
                 f"⏳ **Quota Reset In:** `{time_left}` *(at 11:11 PM IST)*\n\n"
-                f"📌 **Quick Navigation:**\n"
-                f"  └ /quiz — Start a practice test\n"
-                f"  └ /remaininglimit — Check quota & claim +10 bonus\n"
-                f"  └ /hello — Personalized greeting & motivation\n"
-                f"  └ /feedback — Rate & read student reviews\n"
-                f"  └ /mywholestate — Academic progress report\n\n"
+                f"📌 **Quick Command Navigation:**\n"
+                f"• /quiz — Start a practice test session\n"
+                f"• /remaininglimit — Check quota & claim +10 bonus\n"
+                f"• /hello — Motivation greeting\n"
+                f"• /feedback — Submit or read student reviews\n"
+                f"• /mywholestate — Overall progress analytics\n\n"
                 f"📢 **Official Channel:** {CHANNEL_USERNAME}"
             )
             await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
-            await update.message.reply_text("👇 **Interactive Command Options:**", reply_markup=get_universal_inline_menu())
+            await update.message.reply_text("👇 **Interactive Touch Commands:**", reply_markup=get_universal_inline_menu())
             return ConversationHandler.END
     except Exception as e:
         logging.error(f"Error checking profile in start_onboarding: {e}")
@@ -342,6 +342,197 @@ async def cancel_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # =====================================================================
+#             CORE QUIZ EXECUTION ENGINE (FULLY FIXED)
+# =====================================================================
+
+async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await ensure_profile_completed(update, context): return
+    
+    user = update.effective_user
+    chat = update.effective_chat
+
+    if chat and chat.type in ["group", "supergroup"]:
+        bot_username = context.bot.username
+        private_quiz_url = f"https://t.me/{bot_username}?start=quiz"
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton("🎯 Launch Private Quiz", url=private_quiz_url)]])
+        await update.message.reply_text(f"{BOT_BRANDING_HEADER}\n\n📚 **Computer Quiz Ready!**\nHey {user.mention_markdown()}! Click below to launch privately:", reply_markup=markup, parse_mode="Markdown")
+        return
+
+    attempted_today = get_today_attempts(user.id)
+    effective_limit = get_effective_daily_limit(user.id)
+
+    if attempted_today >= effective_limit and not is_admin(user.id):
+        time_left = get_time_until_reset()
+        await update.message.reply_text(
+            f"🛑 **Daily Target Reached!**\n\n"
+            f"You have completed your limit of {effective_limit} questions for today.\n\n"
+            f"⏰ **Quota Resets In:** `{time_left}` *(at 11:11 PM IST)*\n\n"
+            f"💡 Want +10 additional questions? Type /remaininglimit to claim!", 
+            reply_markup=get_main_menu_keyboard(), parse_mode="Markdown"
+        )
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("10 Questions", callback_data="quiz_count_10"), InlineKeyboardButton("15 Questions", callback_data="quiz_count_15")],
+        [InlineKeyboardButton("20 Questions", callback_data="quiz_count_20"), InlineKeyboardButton("25 Questions", callback_data="quiz_count_25")],
+        [InlineKeyboardButton("30 Questions (Max)", callback_data="quiz_count_30")]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text(
+        f"{BOT_BRANDING_HEADER}\n\n"
+        f"📊 **Quiz Setup — Select Question Target (Step 1/2)**\n\n"
+        f"*(Remaining daily quota: `{max(0, effective_limit - attempted_today)}` / `{effective_limit}`)*",
+        reply_markup=markup, parse_mode="Markdown"
+    )
+
+async def quiz_count_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    count = int(query.data.replace("quiz_count_", ""))
+    QUIZ_SETUP_CACHE[user_id] = {"count": count}
+    
+    keyboard = [
+        [InlineKeyboardButton("⏱ 12s", callback_data="quiz_timer_12"), InlineKeyboardButton("⏱ 15s", callback_data="quiz_timer_15"), InlineKeyboardButton("⏱ 18s", callback_data="quiz_timer_18")],
+        [InlineKeyboardButton("⏱ 20s", callback_data="quiz_timer_20"), InlineKeyboardButton("⏱ 25s", callback_data="quiz_timer_25"), InlineKeyboardButton("⏱ 30s", callback_data="quiz_timer_30")]
+    ]
+    await query.edit_message_text(
+        f"{BOT_BRANDING_HEADER}\n\n"
+        f"⏱ **Quiz Setup — Select Timer Duration (Step 2/2)**\n\n"
+        f"Selected: `{count} Questions`\n\n"
+        f"Choose duration per question:", 
+        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown"
+    )
+
+async def quiz_timer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    timer_sec = int(query.data.replace("quiz_timer_", ""))
+    setup = QUIZ_SETUP_CACHE.pop(user_id, {"count": 20})
+    count = setup.get("count", 20)
+    
+    session, msg = start_quiz_session(user_id, requested_count=count, timer_sec=timer_sec)
+    if not session:
+        await query.edit_message_text(f"🛑 {msg}")
+        return
+
+    await query.edit_message_text(f"{BOT_BRANDING_HEADER}\n\n🚀 **Session Started!**\n\n🎯 Target: `{session['total']} Questions` | Timer: `{timer_sec}s/Q`", parse_mode="Markdown")
+    await send_next_question(query.message.chat_id, user_id, context)
+
+async def send_next_question(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    session = get_active_session(user_id)
+    if not session or session.get("is_paused"): return
+
+    if session["current_index"] >= session["total"]:
+        await send_completion_banner(chat_id, user_id, context)
+        return
+
+    timer_sec = max(10, session.get("timer_sec", 15))
+    q = session["questions"][session["current_index"]]
+    
+    header_text = f"🖥 [Q {session['current_index']+1}/{session['total']}]\n\n{q['question']}"
+    if len(header_text) > 300: header_text = header_text[:297] + "..."
+
+    clean_options = [str(opt)[:97] + "..." if len(str(opt)) > 100 else str(opt) for opt in q["options"]]
+    explanation_text = (q.get("explanation") or "Keep practicing daily with Learn with HiM Quiz Book!")[:197]
+    correct_opt_id = q.get("correct_option", 0)
+
+    try:
+        poll_msg = await context.bot.send_poll(
+            chat_id=chat_id, question=header_text, options=clean_options,
+            type=Poll.QUIZ, correct_option_id=correct_opt_id, explanation=explanation_text,
+            is_anonymous=False, open_period=timer_sec
+        )
+        poll_id = poll_msg.poll.id
+        session["active_poll_id"] = poll_id
+        POLL_SESSION_MAP[poll_id] = {"user_id": user_id, "chat_id": chat_id, "q_index": session["current_index"], "correct_option": correct_opt_id}
+
+        if user_id in TIMER_TASKS and not TIMER_TASKS[user_id].done(): TIMER_TASKS[user_id].cancel()
+        TIMER_TASKS[user_id] = asyncio.create_task(auto_skip_timer(chat_id, user_id, poll_id, session["current_index"], timer_sec, context))
+    except Exception as e:
+        logging.error(f"Error sending poll question: {e}")
+        session["skipped_count"] += 1; session["current_index"] += 1
+        await send_next_question(chat_id, user_id, context)
+
+async def auto_skip_timer(chat_id: int, user_id: int, poll_id: str, expected_q_index: int, timer_sec: int, context: ContextTypes.DEFAULT_TYPE):
+    await asyncio.sleep(timer_sec + 1)
+    if poll_id in POLL_SESSION_MAP:
+        POLL_SESSION_MAP.pop(poll_id, None)
+        session = get_active_session(user_id)
+        if session and not session.get("is_paused") and session["current_index"] == expected_q_index:
+            session["skipped_count"] += 1; session["current_index"] += 1
+            await context.bot.send_message(chat_id=chat_id, text="⏱ **Time's Up! Question Skipped.**", parse_mode="Markdown")
+            await send_next_question(chat_id, user_id, context)
+
+async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    answer = update.poll_answer
+    poll_id = answer.poll_id
+    if poll_id not in POLL_SESSION_MAP: return
+
+    poll_data = POLL_SESSION_MAP.pop(poll_id)
+    user_id, chat_id = poll_data["user_id"], poll_data["chat_id"]
+    if user_id in TIMER_TASKS and not TIMER_TASKS[user_id].done(): TIMER_TASKS[user_id].cancel()
+
+    session = get_active_session(user_id)
+    if session and not session.get("is_paused") and session["current_index"] == poll_data["q_index"]:
+        selected = answer.option_ids[0] if answer.option_ids else -1
+        if selected == poll_data["correct_option"]:
+            session["score"] += 1.0
+            session["correct_count"] += 1
+        session["current_index"] += 1
+        await asyncio.sleep(1.0)
+        await send_next_question(chat_id, user_id, context)
+
+async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    session = get_active_session(user_id)
+    if not session:
+        await update.message.reply_text("⚠️ No active test session found.", reply_markup=get_main_menu_keyboard())
+        return
+    session["is_paused"] = True
+    await update.message.reply_text("⏸ **Test Session Paused**\nType /resume to continue.", reply_markup=get_main_menu_keyboard())
+
+async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    session = get_active_session(user_id)
+    if not session or not session.get("is_paused"):
+        await update.message.reply_text("⚠️ No paused test found.", reply_markup=get_main_menu_keyboard())
+        return
+    session["is_paused"] = False
+    await send_next_question(update.effective_chat.id, user_id, context)
+
+async def send_completion_banner(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    session = finish_quiz_session(user_id)
+    if not session: return
+    
+    score, total = max(0.0, session["score"]), session["total"]
+    correct = session["correct_count"]
+    accuracy = round((correct / total) * 100, 1) if total > 0 else 0
+    date_str = get_formatted_ist_date()
+
+    record_quiz_result(user_id, questions_attempted=total, correct_answers=correct, score=score)
+
+    attempted_today = get_today_attempts(user_id)
+    effective_limit = get_effective_daily_limit(user_id)
+
+    banner = (
+        f"{BOT_BRANDING_HEADER}\n\n"
+        f"🏆 **TEST COMPLETED SUCCESSFULLY!**\n\n"
+        f"📅 **Attempt Date:** `{date_str}`\n"
+        f"🎖 **Total Score:** `{score} / {total}`\n"
+        f"✅ **Correct Answers:** `{correct} / {total}`\n"
+        f"⏭ **Skipped Questions:** `{session['skipped_count']}`\n"
+        f"🎯 **Accuracy Rate:** `{accuracy}%`\n"
+        f"📊 **Daily Quota Used:** `{attempted_today} / {effective_limit}` Questions\n\n"
+        f"🌟 *Great job! Consistent daily practice with Himanshu Sir ensures top exam rank.*\n\n"
+        f"📢 **Join Telegram:** {CHANNEL_USERNAME}\n"
+        f"📺 **Subscribe YouTube:** {YOUTUBE_CHANNEL_URL}"
+    )
+    await context.bot.send_message(chat_id=chat_id, text=banner, reply_markup=get_universal_inline_menu(), parse_mode="Markdown")
+
+# =====================================================================
 #             /remaininglimit COMMAND & CROSS-VERIFICATION
 # =====================================================================
 
@@ -420,7 +611,6 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 # =====================================================================
 
 async def send_admin_response(target_obj, text: str, reply_markup=None):
-    """Universal safe sender for both direct commands and callback queries."""
     try:
         if isinstance(target_obj, Update) and target_obj.message:
             await target_obj.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
@@ -743,7 +933,7 @@ async def hello_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👇 **Select an option to proceed:**", reply_markup=get_universal_inline_menu())
 
 # =====================================================================
-#                           CORE QUIZ LOGIC
+#                      STATISTICS & PROFILE
 # =====================================================================
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -753,12 +943,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{BOT_BRANDING_HEADER}\n\n"
         f"👋 **Hello, {escape_markdown(user.full_name)}!**\n"
         f"Welcome to your personal learning & evaluation portal.\n\n"
-        f"🤖 **Platform Features:**\n"
-        f"• 📚 100% Verified, Non-Repeating PYQs\n"
-        f"• 🎯 Question Targets: 10, 15, 20, 25, or 30 Questions\n"
-        f"• ⏱ Expanded Timers: 12s, 15s, 18s, 20s, 25s, or 30s per question\n"
-        f"• ⏸ Full Session Control: /stop & /resume\n"
-        f"• 📈 Practice Quota: Base `{DAILY_QUESTION_LIMIT}` questions daily (+ bonus)\n\n"
         f"📌 **Available Commands Directory:**\n"
         f"• /quiz — Start a computer awareness mock test\n"
         f"• /remaininglimit — Check quota & claim +10 bonus\n"
@@ -770,224 +954,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• /myrank — Global rank evaluation\n"
         f"• /myperformance — Overall grade rating\n"
         f"• /mywholestate — Complete academic progress report\n"
-        f"• /toppersname — Public Leaderboard\n\n"
-        f"👇 **Tap any button below to execute instantly:**"
+        f"• /toppersname — Public Leaderboard"
     )
     await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
     await update.message.reply_text("👇 **Interactive Command Options:**", reply_markup=get_universal_inline_menu())
-
-async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await ensure_profile_completed(update, context): return
-    
-    user = update.effective_user
-    chat = update.effective_chat
-
-    if chat and chat.type in ["group", "supergroup"]:
-        bot_username = context.bot.username
-        private_quiz_url = f"https://t.me/{bot_username}?start=quiz"
-        markup = InlineKeyboardMarkup([[InlineKeyboardButton("🎯 Launch Private Quiz", url=private_quiz_url)]])
-        await update.message.reply_text(f"{BOT_BRANDING_HEADER}\n\n📚 **Computer Quiz Ready!**\nHey {user.mention_markdown()}! Click below to launch privately:", reply_markup=markup, parse_mode="Markdown")
-        return
-
-    attempted_today = get_today_attempts(user.id)
-    effective_limit = get_effective_daily_limit(user.id)
-
-    if attempted_today >= effective_limit and not is_admin(user.id):
-        time_left = get_time_until_reset()
-        await update.message.reply_text(
-            f"🛑 **Daily Target Reached!**\n\n"
-            f"You have completed your limit of {effective_limit} questions for today.\n\n"
-            f"⏰ **Quota Resets In:** `{time_left}` *(at 11:11 PM IST)*\n\n"
-            f"💡 Want +10 additional questions? Type /remaininglimit to claim!", 
-            reply_markup=get_main_menu_keyboard(), parse_mode="Markdown"
-        )
-        return
-
-    keyboard = [
-        [InlineKeyboardButton("10 Questions", callback_data="quiz_count_10"), InlineKeyboardButton("15 Questions", callback_data="quiz_count_15")],
-        [InlineKeyboardButton("20 Questions", callback_data="quiz_count_20"), InlineKeyboardButton("25 Questions", callback_data="quiz_count_25")],
-        [InlineKeyboardButton("30 Questions (Max)", callback_data="quiz_count_30")]
-    ]
-    markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(
-        f"{BOT_BRANDING_HEADER}\n\n"
-        f"📊 **Quiz Setup — Select Question Target (Step 1/2)**\n\n"
-        f"*(Remaining daily quota: `{max(0, effective_limit - attempted_today)}` / `{effective_limit}`)*",
-        reply_markup=markup, parse_mode="Markdown"
-    )
-
-async def quiz_count_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    count = int(query.data.replace("quiz_count_", ""))
-    QUIZ_SETUP_CACHE[user_id] = {"count": count}
-    
-    keyboard = [
-        [InlineKeyboardButton("⏱ 12s", callback_data="quiz_timer_12"), InlineKeyboardButton("⏱ 15s", callback_data="quiz_timer_15"), InlineKeyboardButton("⏱ 18s", callback_data="quiz_timer_18")],
-        [InlineKeyboardButton("⏱ 20s", callback_data="quiz_timer_20"), InlineKeyboardButton("⏱ 25s", callback_data="quiz_timer_25"), InlineKeyboardButton("⏱ 30s", callback_data="quiz_timer_30")]
-    ]
-    await query.edit_message_text(
-        f"{BOT_BRANDING_HEADER}\n\n"
-        f"⏱ **Quiz Setup — Select Timer Duration (Step 2/2)**\n\n"
-        f"Selected: `{count} Questions`\n\n"
-        f"Choose duration per question:", 
-        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown"
-    )
-
-async def quiz_timer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    timer_sec = int(query.data.replace("quiz_timer_", ""))
-    setup = QUIZ_SETUP_CACHE.pop(user_id, {"count": 20})
-    count = setup.get("count", 20)
-    
-    session, msg = start_quiz_session(user_id, requested_count=count, timer_sec=timer_sec)
-    if not session:
-        await query.edit_message_text(f"🛑 {msg}")
-        return
-
-    await query.edit_message_text(f"{BOT_BRANDING_HEADER}\n\n🚀 **Session Started!**\n\n🎯 Target: `{session['total']} Questions` | Timer: `{timer_sec}s/Q`", parse_mode="Markdown")
-    await send_next_question(query.message.chat_id, user_id, context)
-
-async def send_next_question(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    session = get_active_session(user_id)
-    if not session or session.get("is_paused"): return
-
-    if session["current_index"] >= session["total"]:
-        await send_completion_banner(chat_id, user_id, context)
-        return
-
-    timer_sec = max(10, session.get("timer_sec", 15))
-    q = session["questions"][session["current_index"]]
-    
-    header_text = f"🖥 [Q {session['current_index']+1}/{session['total']}]\n\n{q['question']}"
-    if len(header_text) > 300: header_text = header_text[:297] + "..."
-
-    clean_options = [str(opt)[:97] + "..." if len(str(opt)) > 100 else str(opt) for opt in q["options"]]
-    explanation_text = (q.get("explanation") or "Keep practicing daily with Learn with HiM Quiz Book!")[:197]
-    correct_opt_id = q.get("correct_option", 0)
-
-    try:
-        poll_msg = await context.bot.send_poll(
-            chat_id=chat_id, question=header_text, options=clean_options,
-            type=Poll.QUIZ, correct_option_id=correct_opt_id, explanation=explanation_text,
-            is_anonymous=False, open_period=timer_sec
-        )
-        poll_id = poll_msg.poll.id
-        session["active_poll_id"] = poll_id
-        POLL_SESSION_MAP[poll_id] = {"user_id": user_id, "chat_id": chat_id, "q_index": session["current_index"], "correct_option": correct_opt_id}
-
-        if user_id in TIMER_TASKS and not TIMER_TASKS[user_id].done(): TIMER_TASKS[user_id].cancel()
-        TIMER_TASKS[user_id] = asyncio.create_task(auto_skip_timer(chat_id, user_id, poll_id, session["current_index"], timer_sec, context))
-    except Exception:
-        session["skipped_count"] += 1; session["current_index"] += 1
-        await send_next_question(chat_id, user_id, context)
-
-async def auto_skip_timer(chat_id: int, user_id: int, poll_id: str, expected_q_index: int, timer_sec: int, context: ContextTypes.DEFAULT_TYPE):
-    await asyncio.sleep(timer_sec + 1)
-    if poll_id in POLL_SESSION_MAP:
-        POLL_SESSION_MAP.pop(poll_id, None)
-        session = get_active_session(user_id)
-        if session and not session.get("is_paused") and session["current_index"] == expected_q_index:
-            session["skipped_count"] += 1; session["current_index"] += 1
-            await context.bot.send_message(chat_id=chat_id, text="⏱ **Time's Up! Question Skipped.**", parse_mode="Markdown")
-            await send_next_question(chat_id, user_id, context)
-
-async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    answer = update.poll_answer
-    poll_id = answer.poll_id
-    if poll_id not in POLL_SESSION_MAP: return
-
-    poll_data = POLL_SESSION_MAP.pop(poll_id)
-    user_id, chat_id = poll_data["user_id"], poll_data["chat_id"]
-    if user_id in TIMER_TASKS and not TIMER_TASKS[user_id].done(): TIMER_TASKS[user_id].cancel()
-
-    session = get_active_session(user_id)
-    if session and not session.get("is_paused") and session["current_index"] == poll_data["q_index"]:
-        selected = answer.option_ids[0] if answer.option_ids else -1
-        if selected == poll_data["correct_option"]:
-            session["score"] += 1.0
-            session["correct_count"] += 1
-        session["current_index"] += 1
-        await asyncio.sleep(1.0)
-        await send_next_question(chat_id, user_id, context)
-
-async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    session = get_active_session(user_id)
-    if not session:
-        await update.message.reply_text("⚠️ No active test session found.", reply_markup=get_main_menu_keyboard())
-        return
-    session["is_paused"] = True
-    await update.message.reply_text("⏸ **Test Session Paused**\nType /resume to continue.", reply_markup=get_main_menu_keyboard())
-
-async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    session = get_active_session(user_id)
-    if not session or not session.get("is_paused"):
-        await update.message.reply_text("⚠️ No paused test found.", reply_markup=get_main_menu_keyboard())
-        return
-    session["is_paused"] = False
-    await send_next_question(update.effective_chat.id, user_id, context)
-
-async def send_completion_banner(chat_id: int, user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    session = finish_quiz_session(user_id)
-    if not session: return
-    
-    score, total = max(0.0, session["score"]), session["total"]
-    correct = session["correct_count"]
-    accuracy = round((correct / total) * 100, 1) if total > 0 else 0
-    date_str = get_formatted_ist_date()
-
-    record_quiz_result(user_id, questions_attempted=total, correct_answers=correct, score=score)
-
-    attempted_today = get_today_attempts(user_id)
-    effective_limit = get_effective_daily_limit(user_id)
-
-    banner = (
-        f"{BOT_BRANDING_HEADER}\n\n"
-        f"🏆 **TEST COMPLETED SUCCESSFULLY!**\n\n"
-        f"📅 **Attempt Date:** `{date_str}`\n"
-        f"🎖 **Total Score:** `{score} / {total}`\n"
-        f"✅ **Correct Answers:** `{correct} / {total}`\n"
-        f"⏭ **Skipped Questions:** `{session['skipped_count']}`\n"
-        f"🎯 **Accuracy Rate:** `{accuracy}%`\n"
-        f"📊 **Daily Quota Used:** `{attempted_today} / {effective_limit}` Questions\n\n"
-        f"🌟 *Great job! Consistent daily practice with Himanshu Sir ensures top exam rank.*\n\n"
-        f"📢 **Join Telegram:** {CHANNEL_USERNAME}\n"
-        f"📺 **Subscribe YouTube:** {YOUTUBE_CHANNEL_URL}"
-    )
-    await context.bot.send_message(chat_id=chat_id, text=banner, reply_markup=get_universal_inline_menu(), parse_mode="Markdown")
-
-async def quick_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data, chat_id = query.data, query.message.chat_id
-
-    class DummyUpdate:
-        def __init__(self, uid, cid):
-            self.effective_user = type('obj', (object,), {'id': uid, 'full_name': query.from_user.full_name, 'mention_markdown': lambda: query.from_user.mention_markdown()})
-            self.effective_chat = type('obj', (object,), {'id': cid, 'type': query.message.chat.type})
-            self.message = type('obj', (object,), {'chat_id': cid, 'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=cid, text=text, **kwargs)})
-
-    fake_update = DummyUpdate(query.from_user.id, chat_id)
-    if data == "quick_cmd_quiz": await quiz_command(fake_update, context)
-    elif data == "quick_cmd_remaining": await remaininglimit_command(fake_update, context)
-    elif data == "quick_cmd_hello": await hello_command(fake_update, context)
-    elif data == "quick_cmd_help": await help_command(fake_update, context)
-    elif data == "quick_cmd_feedback": await feedback_command(fake_update, context)
-    elif data == "quick_cmd_toppers": await toppersname_handler(fake_update, context)
-    elif data == "quick_cmd_rank": await myrank_handler(fake_update, context)
-    elif data == "quick_cmd_profile": await myprofile_handler(fake_update, context)
-    elif data == "quick_cmd_perf": await myperformance_handler(fake_update, context)
-    elif data == "quick_cmd_state": await mywholestate_handler(fake_update, context)
-
-# =====================================================================
-#                      STATISTICS & PROFILE
-# =====================================================================
 
 async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await ensure_profile_completed(update, context): return
@@ -1091,6 +1061,29 @@ async def mywholestate_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     )
     await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
 
+async def quick_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data, chat_id = query.data, query.message.chat_id
+
+    class DummyUpdate:
+        def __init__(self, uid, cid):
+            self.effective_user = type('obj', (object,), {'id': uid, 'full_name': query.from_user.full_name, 'mention_markdown': lambda: query.from_user.mention_markdown()})
+            self.effective_chat = type('obj', (object,), {'id': cid, 'type': query.message.chat.type})
+            self.message = type('obj', (object,), {'chat_id': cid, 'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=cid, text=text, **kwargs)})
+
+    fake_update = DummyUpdate(query.from_user.id, chat_id)
+    if data == "quick_cmd_quiz": await quiz_command(fake_update, context)
+    elif data == "quick_cmd_remaining": await remaininglimit_command(fake_update, context)
+    elif data == "quick_cmd_hello": await hello_command(fake_update, context)
+    elif data == "quick_cmd_help": await help_command(fake_update, context)
+    elif data == "quick_cmd_feedback": await feedback_command(fake_update, context)
+    elif data == "quick_cmd_toppers": await toppersname_handler(fake_update, context)
+    elif data == "quick_cmd_rank": await myrank_handler(fake_update, context)
+    elif data == "quick_cmd_profile": await myprofile_handler(fake_update, context)
+    elif data == "quick_cmd_perf": await myperformance_handler(fake_update, context)
+    elif data == "quick_cmd_state": await mywholestate_handler(fake_update, context)
+
 # =====================================================================
 #                          APPLICATION BUILDER
 # =====================================================================
@@ -1116,25 +1109,12 @@ def build_application() -> Application:
     init_db()
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
-    onboarding_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start_onboarding)],
-        states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_step)],
-            TARGET_EXAM: [MessageHandler(filters.TEXT & ~filters.COMMAND, target_exam_step)],
-            PHONE_OTP: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), phone_otp_step)],
-            AGE_STEP: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_step)],
-            GENDER_STEP: [MessageHandler(filters.TEXT & ~filters.COMMAND, gender_step)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel_onboarding)],
-        per_chat=True, per_user=True
-    )
-    app.add_handler(onboarding_handler)
-    
+    # Standard Command Handlers (HIGHEST PRIORITY)
+    app.add_handler(CommandHandler("quiz", quiz_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("hello", hello_command))
     app.add_handler(CommandHandler("remaininglimit", remaininglimit_command))
     app.add_handler(CommandHandler("feedback", feedback_command))
-    app.add_handler(CommandHandler("quiz", quiz_command))
     app.add_handler(CommandHandler("stop", stop_command))
     app.add_handler(CommandHandler("resume", resume_command))
     app.add_handler(CommandHandler("toppersname", toppersname_handler))
@@ -1155,7 +1135,22 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("myperformance", myperformance_handler))
     app.add_handler(CommandHandler("mywholestate", mywholestate_handler))
     
-    # Text Regex Handlers for Bottom Bar Buttons
+    # Onboarding Handler (Non-blocking fallback)
+    onboarding_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start_onboarding)],
+        states={
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_step)],
+            TARGET_EXAM: [MessageHandler(filters.TEXT & ~filters.COMMAND, target_exam_step)],
+            PHONE_OTP: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), phone_otp_step)],
+            AGE_STEP: [MessageHandler(filters.TEXT & ~filters.COMMAND, age_step)],
+            GENDER_STEP: [MessageHandler(filters.TEXT & ~filters.COMMAND, gender_step)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_onboarding)],
+        per_chat=True, per_user=True
+    )
+    app.add_handler(onboarding_handler)
+
+    # Keyboard Emoji Matchers
     app.add_handler(MessageHandler(filters.Regex(r"^/quiz"), quiz_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/remaininglimit"), remaininglimit_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/help"), help_command))
