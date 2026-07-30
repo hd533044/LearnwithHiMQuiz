@@ -6,20 +6,16 @@ from app.config import DB_FILE
 logger = logging.getLogger(__name__)
 
 def get_db_connection():
-    """Establishes and returns an SQLite database connection."""
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Universal Aliases to guarantee no missing database connection imports anywhere
 get_db = get_db_connection
 
 def init_db():
-    """Initializes all database tables required for the Quiz Bot."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # User Profiles Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -29,12 +25,11 @@ def init_db():
             target_exam TEXT,
             age INTEGER,
             gender TEXT,
-            is_verified INTEGER DEFAULT 0,
+            is_verified INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     
-    # Quiz Attempts Log Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS quiz_attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +43,6 @@ def init_db():
         )
     ''')
     
-    # Extra Bonus Quota Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bonus_quota (
             user_id INTEGER PRIMARY KEY,
@@ -58,7 +52,6 @@ def init_db():
         )
     ''')
 
-    # Non-Repeating Question Tracking Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS seen_questions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +66,6 @@ def init_db():
     conn.close()
 
 def save_user_profile(user_id, full_name, username, phone, target_exam, age, gender):
-    """Saves or updates a student profile upon completing registration."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -92,7 +84,6 @@ def save_user_profile(user_id, full_name, username, phone, target_exam, age, gen
     conn.close()
 
 def get_user_profile(user_id):
-    """Fetches user profile by user_id."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
@@ -101,7 +92,6 @@ def get_user_profile(user_id):
     return dict(row) if row else None
 
 def get_all_users():
-    """Fetches all registered users ordered by creation date."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users ORDER BY created_at DESC")
@@ -110,7 +100,6 @@ def get_all_users():
     return [dict(r) for r in rows]
 
 def get_today_attempts(user_id):
-    """Calculates total questions attempted today by user in IST time."""
     conn = get_db_connection()
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
@@ -124,7 +113,6 @@ def get_today_attempts(user_id):
     return row['total'] if row and row['total'] else 0
 
 def increment_today_attempts(user_id, count=1, correct=0, score=0.0):
-    """Logs completed quiz attempts into database to track daily quotas, tests count, and scores."""
     conn = get_db_connection()
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
@@ -142,7 +130,6 @@ def save_quiz_result(user_id, questions_attempted, correct_answers, score):
     increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
 
 def get_user_test_history(user_id):
-    """Retrieves full quiz performance statistics for a user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -158,7 +145,6 @@ def get_user_test_history(user_id):
     return dict(row) if row else {"total_quizzes": 0, "total_questions": 0, "total_correct": 0, "avg_score": 0.0}
 
 def get_seen_question_ids(user_id):
-    """Returns a set of question IDs already attempted by the user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT question_id FROM seen_questions WHERE user_id = ?", (user_id,))
@@ -167,7 +153,6 @@ def get_seen_question_ids(user_id):
     return {str(r['question_id']) for r in rows}
 
 def save_seen_question_id(user_id, question_id):
-    """Marks a single question ID as seen for the user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -178,7 +163,6 @@ def save_seen_question_id(user_id, question_id):
     conn.close()
 
 def save_seen_question_ids(user_id, question_ids):
-    """Batch marks multiple question IDs as seen for the user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     for qid in question_ids:
@@ -199,7 +183,6 @@ def mark_question_as_seen(user_id, question_id):
     save_seen_question_id(user_id, question_id)
 
 def reset_user_quiz_data(user_id):
-    """Clears all quiz attempts, bonus limit logs, and seen questions history for a user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM quiz_attempts WHERE user_id = ?", (user_id,))
@@ -209,7 +192,6 @@ def reset_user_quiz_data(user_id):
     conn.close()
 
 def get_user_bonus_quota(user_id):
-    """Retrieves granted bonus quota for a user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM bonus_quota WHERE user_id = ?", (user_id,))
@@ -218,7 +200,6 @@ def get_user_bonus_quota(user_id):
     return dict(row) if row else {"boost_count": 0, "extra_questions": 0}
 
 def boost_user_daily_quota(user_id):
-    """Grants +20 extra daily limit boost (Max 5 boosts total = +100 extra questions)."""
     conn = get_db_connection()
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")

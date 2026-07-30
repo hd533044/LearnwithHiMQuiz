@@ -86,7 +86,10 @@ def get_time_until_reset():
 
 def get_effective_daily_limit(user_id: int) -> int:
     """Calculates base limit (40) + bonus quota from db & verification."""
-    bonus_db = get_user_bonus_quota(user_id).get("extra_questions", 0)
+    try:
+        bonus_db = get_user_bonus_quota(user_id).get("extra_questions", 0)
+    except Exception:
+        bonus_db = 0
     bonus_temp = BONUS_LIMITS.get(user_id, 0)
     return DAILY_QUESTION_LIMIT + bonus_db + bonus_temp
 
@@ -162,7 +165,7 @@ def get_admin_inline_panel():
 # MANDATORY PROFILE VERIFICATION GUARD
 # ---------------------------------------------------------------------
 async def ensure_profile_completed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Verifies that the user has completed registration. Admins bypass this check."""
+    """Verifies that the user has completed registration. Admins bypass this check safely."""
     user = update.effective_user
     if not user:
         return False
@@ -170,28 +173,31 @@ async def ensure_profile_completed(update: Update, context: ContextTypes.DEFAULT
     if is_admin(user.id):
         return True
 
-    raw_profile = get_user_profile(user.id)
-    profile = dict(raw_profile) if raw_profile else {}
-    
-    if (not profile or 
-        not profile.get("is_verified") or 
-        not profile.get("full_name") or 
-        profile.get("phone_number") in ["N/A", None, ""] or 
-        profile.get("target_exam") in ["General", None, ""]):
+    try:
+        raw_profile = get_user_profile(user.id)
+        profile = dict(raw_profile) if raw_profile else {}
         
-        guard_msg = (
-            f"{BOT_BRANDING_HEADER}\n\n"
-            f"⚠️ **Registration Required!**\n\n"
-            f"Dear Student, to maintain valid leaderboard rankings and exam performance tracking, "
-            f"you must complete your student profile first!\n\n"
-            f"👉 Please type /start to complete your profile now."
-        )
-        if update.message:
-            await update.message.reply_text(guard_msg, parse_mode="Markdown")
-        elif update.callback_query:
-            await update.callback_query.message.reply_text(guard_msg, parse_mode="Markdown")
-        return False
-    return True
+        if (not profile or 
+            not profile.get("full_name") or 
+            profile.get("phone_number") in ["N/A", None, ""] or 
+            profile.get("target_exam") in ["General", None, ""]):
+            
+            guard_msg = (
+                f"{BOT_BRANDING_HEADER}\n\n"
+                f"⚠️ **Registration Required!**\n\n"
+                f"Dear Student, to maintain valid leaderboard rankings and exam performance tracking, "
+                f"you must complete your student profile first!\n\n"
+                f"👉 Please type /start to complete your profile now."
+            )
+            if update.message:
+                await update.message.reply_text(guard_msg, parse_mode="Markdown")
+            elif update.callback_query:
+                await update.callback_query.message.reply_text(guard_msg, parse_mode="Markdown")
+            return False
+        return True
+    except Exception as e:
+        logging.error(f"Error in ensure_profile_completed: {e}")
+        return True
 
 # =====================================================================
 #                        VERIFICATION HELPERS
@@ -218,7 +224,7 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_profile = get_user_profile(user.id)
         profile = dict(raw_profile) if raw_profile else {}
         
-        if profile.get("is_verified") and profile.get("phone_number") not in ["N/A", None, ""]:
+        if (profile and profile.get("phone_number") not in ["N/A", None, ""]) or is_admin(user.id):
             full_name = profile.get("full_name") or user.full_name
             target_exam = profile.get("target_exam") or "General"
             
@@ -260,96 +266,76 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return NAME
 
 async def name_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        name_text = update.message.text.strip()
-        context.user_data["full_name"] = name_text
-        exams = [
-            ["1. SSC CGL", "2. SSC CHSL"],
-            ["3. DSSSB", "4. CAPF HCM AND ASI STENO"],
-            ["5. DELHI POLICE HCM", "6. UPSI / UP-CONST"],
-            ["7. RAILWAYS", "8. SSC CGL MAINS"],
-            ["9. SSC CHSL MAINS", "10. OTHER EXAMS"]
-        ]
-        markup = ReplyKeyboardMarkup(exams, one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text(
-            f"Pleasure to onboard you, *{escape_markdown(name_text)}*! ✨\n\n"
-            f"🎯 **Select Target Exam (Step 2/5)**\n"
-            f"Please choose your target exam:", 
-            reply_markup=markup, parse_mode="Markdown"
-        )
-        return TARGET_EXAM
-    except Exception:
-        return NAME
+    name_text = update.message.text.strip()
+    context.user_data["full_name"] = name_text
+    exams = [
+        ["1. SSC CGL", "2. SSC CHSL"],
+        ["3. DSSSB", "4. CAPF HCM AND ASI STENO"],
+        ["5. DELHI POLICE HCM", "6. UPSI / UP-CONST"],
+        ["7. RAILWAYS", "8. SSC CGL MAINS"],
+        ["9. SSC CHSL MAINS", "10. OTHER EXAMS"]
+    ]
+    markup = ReplyKeyboardMarkup(exams, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(
+        f"Pleasure to onboard you, *{escape_markdown(name_text)}*! ✨\n\n"
+        f"🎯 **Select Target Exam (Step 2/5)**\n"
+        f"Please choose your target exam:", 
+        reply_markup=markup, parse_mode="Markdown"
+    )
+    return TARGET_EXAM
 
 async def target_exam_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        exam_text = update.message.text.strip()
-        context.user_data["target_exam"] = exam_text
-        contact_btn = KeyboardButton(text="📱 Share Verified Mobile Number", request_contact=True)
-        markup = ReplyKeyboardMarkup([[contact_btn]], one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text(
-            f"🎯 Selected Target: `{exam_text}`\n\n"
-            f"📱 **Mobile Verification (Step 3/5)**\n"
-            f"Tap the button below to share your mobile number securely:", 
-            reply_markup=markup, parse_mode="Markdown"
-        )
-        return PHONE_OTP
-    except Exception:
-        return TARGET_EXAM
+    exam_text = update.message.text.strip()
+    context.user_data["target_exam"] = exam_text
+    contact_btn = KeyboardButton(text="📱 Share Verified Mobile Number", request_contact=True)
+    markup = ReplyKeyboardMarkup([[contact_btn]], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text(
+        f"🎯 Selected Target: `{exam_text}`\n\n"
+        f"📱 **Mobile Verification (Step 3/5)**\n"
+        f"Tap the button below to share your mobile number securely:", 
+        reply_markup=markup, parse_mode="Markdown"
+    )
+    return PHONE_OTP
 
 async def phone_otp_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        phone = update.message.contact.phone_number if update.message.contact else update.message.text.strip()
-        if not phone or len(phone) < 8:
-            await update.message.reply_text("⚠️ Please share a valid mobile number using the button below:")
-            return PHONE_OTP
-            
-        context.user_data["phone_number"] = phone
-        await update.message.reply_text("👤 **Student Age (Step 4/5)**\nPlease reply with your Age in years (e.g. 22):", reply_markup=ReplyKeyboardRemove())
-        return AGE_STEP
-    except Exception:
-        return PHONE_OTP
+    phone = update.message.contact.phone_number if update.message.contact else update.message.text.strip()
+    context.user_data["phone_number"] = phone
+    await update.message.reply_text("👤 **Student Age (Step 4/5)**\nPlease reply with your Age in years (e.g. 22):", reply_markup=ReplyKeyboardRemove())
+    return AGE_STEP
 
 async def age_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        text = update.message.text.strip()
-        context.user_data["age"] = int(text) if text.isdigit() else 21
-        markup = ReplyKeyboardMarkup([["Male", "Female"], ["Other"]], one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text("👤 **Gender Selection (Step 5/5)**\nPlease choose your gender:", reply_markup=markup)
-        return GENDER_STEP
-    except Exception:
-        return AGE_STEP
+    text = update.message.text.strip()
+    context.user_data["age"] = int(text) if text.isdigit() else 21
+    markup = ReplyKeyboardMarkup([["Male", "Female"], ["Other"]], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("👤 **Gender Selection (Step 5/5)**\nPlease choose your gender:", reply_markup=markup)
+    return GENDER_STEP
 
 async def gender_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        gender_text = update.message.text.strip()
-        user = update.effective_user
-        
-        save_user_profile(
-            user_id=user.id,
-            full_name=context.user_data.get("full_name", user.full_name),
-            username=user.username or "N/A",
-            phone=context.user_data.get("phone_number", "N/A"),
-            target_exam=context.user_data.get("target_exam", "General"),
-            age=context.user_data.get("age", 21),
-            gender=gender_text
-        )
-        
-        completion_pop_up = (
-            f"{BOT_BRANDING_HEADER}\n\n"
-            f"🎉 **PROFILE REGISTRATION SUCCESSFUL!**\n\n"
-            f"✨ **What you can do with Learn with HiM Quiz Book:**\n"
-            f"• 🚀 **Attempt Mocks:** Daily verified PYQs with custom timer controls.\n"
-            f"• ⏳ **Quota & Bonus:** 40 daily questions base limit + claim +10 bonus.\n"
-            f"• 🥇 **Global Rank:** Live position on student leaderboard.\n"
-            f"• 📈 **Performance Report:** Detailed exam-wise analytics.\n\n"
-            f"👇 **Tap /quiz below or use the interactive menu to begin practicing!**"
-        )
-        await update.message.reply_text(completion_pop_up, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
-        await update.message.reply_text("👇 **Interactive Command Directory:**", reply_markup=get_universal_inline_menu())
-        return ConversationHandler.END
-    except Exception:
-        return ConversationHandler.END
+    gender_text = update.message.text.strip()
+    user = update.effective_user
+    
+    save_user_profile(
+        user_id=user.id,
+        full_name=context.user_data.get("full_name", user.full_name),
+        username=user.username or "N/A",
+        phone=context.user_data.get("phone_number", "N/A"),
+        target_exam=context.user_data.get("target_exam", "General"),
+        age=context.user_data.get("age", 21),
+        gender=gender_text
+    )
+    
+    completion_pop_up = (
+        f"{BOT_BRANDING_HEADER}\n\n"
+        f"🎉 **PROFILE REGISTRATION SUCCESSFUL!**\n\n"
+        f"✨ **What you can do with Learn with HiM Quiz Book:**\n"
+        f"• 🚀 **Attempt Mocks:** Daily verified PYQs with custom timer controls.\n"
+        f"• ⏳ **Quota & Bonus:** 40 daily questions base limit + claim +10 bonus.\n"
+        f"• 🥇 **Global Rank:** Live position on student leaderboard.\n"
+        f"• 📈 **Performance Report:** Detailed exam-wise analytics.\n\n"
+        f"👇 **Tap /quiz below or use the interactive menu to begin practicing!**"
+    )
+    await update.message.reply_text(completion_pop_up, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
+    return ConversationHandler.END
 
 async def cancel_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Setup cancelled. Type /start anytime to complete registration.", reply_markup=get_main_menu_keyboard())
@@ -399,7 +385,7 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
     is_tg_member = await check_telegram_membership(user_id, context)
 
-    if not is_tg_member:
+    if not is_tg_member and not is_admin(user_id):
         await query.edit_message_text(
             f"{BOT_BRANDING_HEADER}\n\n"
             f"❌ **Cross-Verification Failed!**\n\n"
@@ -806,7 +792,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attempted_today = get_today_attempts(user.id)
     effective_limit = get_effective_daily_limit(user.id)
 
-    if attempted_today >= effective_limit:
+    if attempted_today >= effective_limit and not is_admin(user.id):
         time_left = get_time_until_reset()
         await update.message.reply_text(
             f"🛑 **Daily Target Reached!**\n\n"
@@ -827,7 +813,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"{BOT_BRANDING_HEADER}\n\n"
         f"📊 **Quiz Setup — Select Question Target (Step 1/2)**\n\n"
-        f"*(Remaining daily quota: `{effective_limit - attempted_today}` / `{effective_limit}`)*",
+        f"*(Remaining daily quota: `{max(0, effective_limit - attempted_today)}` / `{effective_limit}`)*",
         reply_markup=markup, parse_mode="Markdown"
     )
 
@@ -956,7 +942,6 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
     accuracy = round((correct / total) * 100, 1) if total > 0 else 0
     date_str = get_formatted_ist_date()
 
-    # Record test completion cleanly to DB
     record_quiz_result(user_id, questions_attempted=total, correct_answers=correct, score=score)
 
     attempted_today = get_today_attempts(user_id)
