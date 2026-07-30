@@ -10,7 +10,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 PORT = int(os.environ.get("PORT", 10000))
-# Replace with your actual Render service URL (e.g., https://learnwithhimquiz.onrender.com)
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "")
 
 class HealthHandler(http.server.SimpleHTTPRequestHandler):
@@ -19,6 +18,10 @@ class HealthHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-type", "text/plain")
         self.end_headers()
         self.wfile.write(b"OK - Quiz Bot Active 24/7")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
 
 def run_web_server():
     try:
@@ -30,7 +33,7 @@ def run_web_server():
 
 def self_ping_loop():
     """Periodically pings the web server to prevent Render Free Tier spindown."""
-    time.sleep(30)
+    time.sleep(15)
     while True:
         try:
             url = RENDER_EXTERNAL_URL if RENDER_EXTERNAL_URL else f"http://127.0.0.1:{PORT}"
@@ -39,7 +42,18 @@ def self_ping_loop():
                 logging.info(f"Keep-alive self-ping successful: {response.status}")
         except Exception as e:
             logging.warning(f"Self-ping failed (harmless during boot): {e}")
-        time.sleep(600)  # Ping every 10 minutes (600 seconds)
+        time.sleep(600)  # Ping every 10 minutes
+
+def run_bot_script():
+    """Executes run.py and ensures env vars are inherited."""
+    env = os.environ.copy()
+    token = env.get("BOT_TOKEN", "").strip()
+    if not token:
+        logging.error("⚠️ BOT_TOKEN IS MISSING OR EMPTY IN ENVIRONMENT VARIABLES!")
+    else:
+        logging.info(f"🔑 BOT_TOKEN detected (Length: {len(token)} characters)")
+    
+    subprocess.run(["python", "run.py"], env=env)
 
 if __name__ == "__main__":
     # Start Web Server in a daemon thread
@@ -48,5 +62,5 @@ if __name__ == "__main__":
     # Start Keep-Alive Ping loop in a daemon thread
     threading.Thread(target=self_ping_loop, daemon=True).start()
 
-    # Start the actual Python Bot runner
-    subprocess.run(["python", "run.py"])
+    # Start the actual Telegram Bot runner
+    run_bot_script()

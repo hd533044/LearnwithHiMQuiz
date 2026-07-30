@@ -1,20 +1,26 @@
 import asyncio
 import logging
 import warnings
-import time
+import sys
+import os
+from app.config import BOT_TOKEN
 from app.telegram_bot import build_application
 
-# Silence verbosity
-warnings.filterwarnings("ignore")
-logging.getLogger("httpx").setLevel(logging.CRITICAL)
-logging.getLogger("telegram").setLevel(logging.CRITICAL)
-logging.getLogger("telegram.ext").setLevel(logging.CRITICAL)
+# Configure logging
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
 async def start_bot_with_retry():
+    clean_token = BOT_TOKEN.strip() if BOT_TOKEN else ""
+    
+    if not clean_token:
+        print("❌ CRITICAL ERROR: BOT_TOKEN is empty! Please set BOT_TOKEN in Render Environment Variables.")
+        sys.exit(1)
+
     while True:
         try:
             print("==================================================")
             print("🤖 Enterprise Computer Quiz Bot Starting...")
+            print(f"🔑 Connecting with Bot Token ending in: ...{clean_token[-6:]}")
             
             app = build_application()
             await app.initialize()
@@ -26,11 +32,12 @@ async def start_bot_with_retry():
             print("✅ Bot is active and listening 24/7 for Telegram updates!")
             print("==================================================")
             
+            # Keep running indefinitely
             while True:
                 await asyncio.sleep(3600)
 
         except Exception as e:
-            print(f"⚠️ Connection interrupted: {e}")
+            print(f"⚠️ Connection error: {e}")
             print("🔄 Reconnecting in 5 seconds...")
             await asyncio.sleep(5)
 
