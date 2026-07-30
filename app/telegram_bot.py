@@ -1036,17 +1036,22 @@ async def myperformance_handler(update: Update, context: ContextTypes.DEFAULT_TY
     history = get_user_test_history(user_id)
     total_mocks = history.get("total_quizzes", 0)
     avg_score = round(history.get("avg_score", 0.0) or 0.0, 2)
-    score_out_of_100, _ = calculate_overall_performance(user_id)
+    
+    try:
+        perf_data = calculate_overall_performance(user_id)
+        score_out_of_100 = perf_data[0] if isinstance(perf_data, (tuple, list)) else perf_data
+    except Exception:
+        score_out_of_100 = avg_score
     
     rating = "🌟 Excellent" if score_out_of_100 >= 80 else "👍 Good" if score_out_of_100 >= 50 else "⚠️ Needs Improvement"
     
     msg = (
         f"{BOT_BRANDING_HEADER}\n\n"
         f"📊 **Performance Analytics**\n\n"
-        f"• **Overall Score:** `{score_out_of_100} / 100`\n"
-        f"• **Average Test Score:** `{avg_score}`\n"
+        f"• **Overall Rating:** `{score_out_of_100} / 100`\n"
+        f"• **Average Score:** `{avg_score}`\n"
         f"• **Mock Tests Completed:** `{total_mocks}`\n"
-        f"• **Performance Rating:** {rating}"
+        f"• **Performance Grade:** {rating}"
     )
     await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
 
@@ -1064,7 +1069,12 @@ async def mywholestate_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     time_left = get_time_until_reset()
     history = get_user_test_history(user_id)
     total_mocks = history.get("total_quizzes", 0)
-    score_out_of_100, _ = calculate_overall_performance(user_id)
+    
+    try:
+        perf_data = calculate_overall_performance(user_id)
+        score_out_of_100 = perf_data[0] if isinstance(perf_data, (tuple, list)) else perf_data
+    except Exception:
+        score_out_of_100 = round(history.get("avg_score", 0.0) or 0.0, 2)
 
     msg = (
         f"{BOT_BRANDING_HEADER}\n\n"
@@ -1149,7 +1159,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("myperformance", myperformance_handler))
     app.add_handler(CommandHandler("mywholestate", mywholestate_handler))
     
-    # Text Regex Handlers for Bottom Bar Buttons
+    # Exact Robust Regex Matchers for Keyboard Buttons
     app.add_handler(MessageHandler(filters.Regex(r"^/quiz"), quiz_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/remaininglimit"), remaininglimit_command))
     app.add_handler(MessageHandler(filters.Regex(r"^/help"), help_command))
