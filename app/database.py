@@ -141,7 +141,7 @@ def record_quiz_result(user_id, questions_attempted, correct_answers, score):
 def save_quiz_result(user_id, questions_attempted, correct_answers, score):
     increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
 
-# Non-Repeating Question Tracking Functions
+# Non-Repeating Question Tracking Functions (All possible function names covered)
 def get_seen_question_ids(user_id):
     """Returns a set of question IDs already attempted by the user."""
     conn = get_db_connection()
@@ -152,7 +152,7 @@ def get_seen_question_ids(user_id):
     return {str(r['question_id']) for r in rows}
 
 def save_seen_question_id(user_id, question_id):
-    """Marks a question ID as seen for the given user."""
+    """Marks a single question ID as seen for the user."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -173,6 +173,18 @@ def save_seen_question_ids(user_id, question_ids):
         ''', (user_id, str(qid)))
     conn.commit()
     conn.close()
+
+# Exact function required by quiz_engine.py
+def mark_questions_as_seen(user_id, question_ids):
+    """Marks question IDs as seen (wrapper for quiz_engine compatibility)."""
+    if isinstance(question_ids, (list, set, tuple)):
+        save_seen_question_ids(user_id, question_ids)
+    else:
+        save_seen_question_id(user_id, question_ids)
+
+def mark_question_as_seen(user_id, question_id):
+    """Single item alias for mark_questions_as_seen."""
+    save_seen_question_id(user_id, question_id)
 
 def reset_user_quiz_data(user_id):
     """Clears all quiz attempts, bonus limit logs, and seen questions history for a user."""
