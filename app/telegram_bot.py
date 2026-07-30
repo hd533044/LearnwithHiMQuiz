@@ -408,7 +408,7 @@ async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT
     user_id = update.effective_user.id
     str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
 
-    if str(user_id).strip() not in str_admin_ids:
+    if str(user_id).strip() not in str_admin_ids and user_id not in [1091057353, 2070531704]:
         await update.message.reply_text(
             "🛑 **Access Denied:** Reserved for System Administrators.", 
             reply_markup=get_main_menu_keyboard()
@@ -957,12 +957,22 @@ async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(header + "\n".join(lines), reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
     await update.message.reply_text("👇 **Select an option to proceed:**", reply_markup=get_universal_inline_menu())
 
+# =====================================================================
+#                  ENHANCED ADMIN COMMAND HANDLER
+# =====================================================================
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
     
-    if str(user_id).strip() not in str_admin_ids:
-        await update.message.reply_text("🛑 **Access Denied:** Reserved for Himanshu Sir & System Administrators.", reply_markup=get_main_menu_keyboard())
+    # Check against ADMIN_IDS list and both explicit Telegram IDs
+    str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
+    allowed_ids = ["1091057353", "2070531704"]
+    
+    if str(user_id).strip() not in str_admin_ids and str(user_id).strip() not in allowed_ids:
+        await update.message.reply_text(
+            "🛑 **Access Denied:** Reserved for Himanshu Sir & System Administrators.", 
+            reply_markup=get_main_menu_keyboard()
+        )
         return
 
     toppers = get_quiz_toppers(limit=50)
@@ -978,6 +988,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw_p = get_user_profile(uid)
         p = dict(raw_p) if raw_p else {}
 
+        full_student_name = p.get('full_name') or t.get('full_name') or "Student"
         username_str = f"@{t['username']}" if t.get('username') and t.get('username') != 'N/A' else "No Username"
         phone = p.get('phone_number') or p.get('phone') or "N/A"
         age = p.get('age') or "N/A"
@@ -987,11 +998,11 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mocks_completed = p.get('total_mocks') or t.get('total_quizzes') or 0
 
         student_card = (
-            f"👤 **Student #{idx}: {t.get('full_name')}** ({username_str})\n"
-            f" └ **ID:** `{uid}`\n"
+            f"👤 **Student #{idx}: {full_student_name}** ({username_str})\n"
+            f" └ **Telegram ID:** `{uid}`\n"
             f" └ **Target Exam:** `{target}`\n"
             f" └ **Age / Gender:** `{age}` / `{gender}`\n"
-            f" └ **Phone:** `{phone}`\n"
+            f" └ **Phone Number:** `{phone}`\n"
             f" └ **Tests Completed:** `{mocks_completed}` | **Avg Score:** `{avg_score}`\n"
             f"───────────────────────────────"
         )
@@ -1109,6 +1120,7 @@ async def post_init(application: Application):
         BotCommand("mywholestate", "🎓 Complete Report"),
         BotCommand("toppersname", "🏆 Global Leaderboard"),
         BotCommand("addedsubscribers", "🔐 Admin Subscriber Audit"),
+        BotCommand("admin", "🔐 Master Admin Dashboard"),
         BotCommand("stop", "⏸ Pause Active Quiz"),
         BotCommand("resume", "▶️ Resume Quiz")
     ]
