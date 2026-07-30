@@ -10,6 +10,9 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Alias get_db to get_db_connection to fix the ImportError in app/stats.py
+get_db = get_db_connection
+
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
