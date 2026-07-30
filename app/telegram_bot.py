@@ -15,7 +15,9 @@ from app.config import (
     DAILY_QUESTION_LIMIT, ADMIN_IDS
 )
 from app.database import (
-    init_db, save_user_profile, get_user_profile, get_today_attempts
+    init_db, save_user_profile, get_user_profile, get_today_attempts,
+    get_all_users, reset_user_quiz_data, get_user_bonus_quota, boost_user_daily_quota,
+    increment_today_attempts, record_quiz_result, get_user_test_history
 )
 from app.stats import get_quiz_toppers, calculate_user_rank, calculate_overall_performance
 from app.quiz_engine import start_quiz_session, get_active_session, finish_quiz_session
@@ -411,7 +413,7 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.edit_message_text(success_msg, parse_mode="Markdown")
 
 # =====================================================================
-#                   ADMIN SUBSCRIBERS MONITORING
+#                  ADMIN SUBSCRIBERS MONITORING
 # =====================================================================
 
 async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -669,7 +671,11 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attempted_today = get_today_attempts(user.id)
     effective_limit = get_effective_daily_limit(user.id)
 
-    if attempted_today >= effective_limit:
+    str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
+    allowed_ids = ["1091057353", "2070531704"]
+    is_user_admin = str(user.id).strip() in str_admin_ids or str(user.id).strip() in allowed_ids
+
+    if attempted_today >= effective_limit and not is_user_admin:
         time_left = get_time_until_reset()
         await update.message.reply_text(
             f"🛑 **Daily Target Reached!**\n\n"
@@ -692,7 +698,7 @@ async def quiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{BOT_BRANDING_HEADER}\n\n"
         f"📊 **Quiz Setup — Select Question Target (Step 1/2)**\n\n"
         f"Select the number of questions for this test session:\n"
-        f"*(Remaining daily quota: `{effective_limit - attempted_today}` / `{effective_limit}`)*",
+        f"*(Remaining daily quota: `{max(0, effective_limit - attempted_today)}` / `{effective_limit}`)*",
         reply_markup=markup,
         parse_mode="Markdown"
     )
@@ -901,6 +907,8 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
     total = session["total"]
     accuracy = round((session["correct_count"] / total) * 100, 1) if total > 0 else 0
 
+    record_quiz_result(user_id, questions_attempted=total, correct_answers=session["correct_count"], score=score)
+
     banner = (
         f"{BOT_BRANDING_HEADER}\n\n"
         f"🏆 **Test Completed Successfully!**\n\n"
@@ -955,7 +963,7 @@ async def quick_command_callback(update: Update, context: ContextTypes.DEFAULT_T
         await mywholestate_handler(fake_update, context)
 
 # =====================================================================
-#                      PUBLIC & ADMIN LEADERBOARD
+#                       PUBLIC & ADMIN LEADERBOARD
 # =====================================================================
 
 async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -971,13 +979,12 @@ async def toppersname_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text("👇 **Select an option to proceed:**", reply_markup=get_universal_inline_menu())
 
 # =====================================================================
-#                 FAIL-SAFE ADMIN COMMAND HANDLER
+#                 STREAMLINED /admin COMMAND HANDLER
 # =====================================================================
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # Check against ADMIN_IDS list and both explicit Telegram IDs
     str_admin_ids = [str(aid).strip() for aid in ADMIN_IDS]
     allowed_ids = ["1091057353", "2070531704"]
     
