@@ -22,7 +22,7 @@ def start_quiz_session(user_id: int, requested_count: int = 20, timer_sec: int =
     # Retrieve set of all question IDs previously seen by this user
     seen_ids = get_seen_question_ids(user_id)
     
-    # Fetch completely unseen questions from all 21 connected batch files
+    # Fetch completely unseen questions
     selected_questions = fetch_pyqs_for_quiz(needed_count=session_count, seen_ids=seen_ids)
     
     if not selected_questions:
@@ -46,10 +46,9 @@ def start_quiz_session(user_id: int, requested_count: int = 20, timer_sec: int =
     }
     
     ACTIVE_QUIZZES[user_id] = session
-    increment_today_attempts(user_id, len(selected_questions))
     
     remaining_after = remaining_quota - len(selected_questions)
-    return session, f"Quiz Session Started! ({len(selected_questions)} Unique Questions selected from all batches). Remaining daily quota: {remaining_after}"
+    return session, f"Quiz Session Started! ({len(selected_questions)} Unique Questions selected). Remaining daily quota: {remaining_after}"
 
 def get_active_session(user_id: int):
     return ACTIVE_QUIZZES.get(user_id)

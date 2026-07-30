@@ -30,7 +30,7 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "👋 **Welcome to the Official Computer Quiz Portal!**\n\n"
-        "To set up your student profile, let's complete a quick 4-step setup.\n\n"
+        "To set up your student profile, let's complete a quick setup.\n\n"
         "👉 **Step 1/4:** Please reply with your **Full Name**:",
         parse_mode="Markdown"
     )

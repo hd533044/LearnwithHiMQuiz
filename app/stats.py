@@ -4,18 +4,18 @@ def get_quiz_toppers(quiz_id: str = None, limit: int = 10):
     with get_db() as conn:
         if quiz_id:
             query = """
-            SELECT u.full_name, u.username, u.target_exam, MAX(q.score) as top_score 
+            SELECT u.full_name, u.username, u.target_exam, u.user_id, MAX(q.score) as avg_score 
             FROM quiz_attempts q
             JOIN users u ON q.user_id = u.user_id
             WHERE q.quiz_id = ?
             GROUP BY q.user_id
-            ORDER BY top_score DESC
+            ORDER BY avg_score DESC
             LIMIT ?
             """
             return conn.execute(query, (quiz_id, limit)).fetchall()
         else:
             query = """
-            SELECT u.full_name, u.username, u.target_exam, AVG(q.score) as avg_score 
+            SELECT u.full_name, u.username, u.target_exam, u.user_id, AVG(q.score) as avg_score 
             FROM quiz_attempts q
             JOIN users u ON q.user_id = u.user_id
             GROUP BY q.user_id
@@ -41,7 +41,7 @@ def calculate_user_rank(user_id: int):
 def calculate_overall_performance(user_id: int):
     with get_db() as conn:
         stats = conn.execute("""
-        SELECT AVG((score / total_questions) * 100) as avg_pct, COUNT(*) as total_tests
+        SELECT AVG(CASE WHEN COALESCE(total_questions, 0) > 0 THEN (score / total_questions) * 100 ELSE score * 5 END) as avg_pct, COUNT(*) as total_tests
         FROM quiz_attempts
         WHERE user_id = ?
         """, (user_id,)).fetchone()

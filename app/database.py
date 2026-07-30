@@ -33,14 +33,18 @@ def init_db():
         )
     ''')
     
-    # Quiz Attempts Log Table
+    # Quiz Attempts Log Table (Updated with full analytics support)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS quiz_attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
-            questions_attempted INTEGER,
-            correct_answers INTEGER,
-            score REAL,
+            quiz_id TEXT DEFAULT 'computer_awareness_mock',
+            questions_attempted INTEGER DEFAULT 0,
+            total_questions INTEGER DEFAULT 0,
+            correct_answers INTEGER DEFAULT 0,
+            skipped_count INTEGER DEFAULT 0,
+            score REAL DEFAULT 0.0,
+            time_taken INTEGER DEFAULT 0,
             attempt_date DATE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (user_id)
@@ -128,17 +132,26 @@ def increment_today_attempts(user_id, count=1, correct=0, score=0.0):
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
     cursor.execute('''
-        INSERT INTO quiz_attempts (user_id, questions_attempted, correct_answers, score, attempt_date)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (user_id, count, correct, score, ist_today))
+        INSERT INTO quiz_attempts (user_id, questions_attempted, total_questions, correct_answers, score, attempt_date)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, count, count, correct, score, ist_today))
     conn.commit()
     conn.close()
 
-def record_quiz_result(user_id, questions_attempted, correct_answers, score):
-    increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
+def record_quiz_result(user_id, quiz_id="computer_awareness_mock", score=0.0, total_questions=0, correct_count=0, skipped_count=0, time_taken=0, **kwargs):
+    """Fully compatible helper function for logging quiz completions."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+    cursor.execute('''
+        INSERT INTO quiz_attempts (user_id, quiz_id, questions_attempted, total_questions, correct_answers, skipped_count, score, time_taken, attempt_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (user_id, quiz_id, total_questions, total_questions, correct_count, skipped_count, score, time_taken, ist_today))
+    conn.commit()
+    conn.close()
 
-def save_quiz_result(user_id, questions_attempted, correct_answers, score):
-    increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
+def save_quiz_result(user_id, questions_attempted, correct_answers, score, **kwargs):
+    record_quiz_result(user_id=user_id, score=score, total_questions=questions_attempted, correct_count=correct_answers)
 
 def get_user_test_history(user_id):
     """Retrieves full quiz performance statistics for a user."""
@@ -189,7 +202,7 @@ def save_seen_question_ids(user_id, question_ids):
     conn.close()
 
 def mark_questions_as_seen(user_id, question_ids):
-    """Marks question IDs as seen."""
+    """Marks question IDs as seen safely."""
     if isinstance(question_ids, (list, set, tuple)):
         save_seen_question_ids(user_id, question_ids)
     else:

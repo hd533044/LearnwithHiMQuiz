@@ -23,14 +23,10 @@ def verify_and_correct_answer(q: dict) -> dict:
     if not isinstance(correct_opt, int) or correct_opt < 0 or correct_opt >= len(opts):
         correct_opt = 0
 
-    # Runtime Smart Check: Scan explanation for option text matching to prevent wrong answers
-    # If the explanation explicitly quotes one of the options, sync the index to match it
     lower_expl = expl.lower()
     for idx, opt in enumerate(opts):
         clean_opt = opt.lower()
-        # If option text is unique and explicitly stated as correct in the explanation text
         if len(clean_opt) > 3 and clean_opt in lower_expl:
-            # Check context words nearby to ensure it's stated as the answer
             if f"is {clean_opt}" in lower_expl or f"correct is {clean_opt}" in lower_expl or f"answer is {clean_opt}" in lower_expl or lower_expl.startswith(clean_opt):
                 correct_opt = idx
                 break
@@ -71,7 +67,7 @@ def fetch_pyqs_for_quiz(needed_count: int = 50, seen_ids: set = None) -> list:
 
     for q in all_raw_questions:
         q_id = q.get("id")
-        if q_id is not None and q_id in seen_ids:
+        if q_id is not None and str(q_id) in seen_ids:
             continue
 
         verified_q = verify_and_correct_answer(q)

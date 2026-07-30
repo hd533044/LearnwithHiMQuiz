@@ -907,7 +907,7 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
     total = session["total"]
     accuracy = round((session["correct_count"] / total) * 100, 1) if total > 0 else 0
 
-    record_quiz_result(user_id, questions_attempted=total, correct_answers=session["correct_count"], score=score)
+    record_quiz_result(user_id, quiz_id="computer_awareness_mock", score=score, total_questions=total, correct_count=session["correct_count"], skipped_count=session["skipped_count"])
 
     banner = (
         f"{BOT_BRANDING_HEADER}\n\n"
