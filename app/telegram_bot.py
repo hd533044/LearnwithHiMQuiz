@@ -97,7 +97,7 @@ def escape_markdown(text: str) -> str:
     return re.sub(r'([_*`\[\]])', r'\\\1', str(text))
 
 # ---------------------------------------------------------------------
-# UI TOOLKIT: Persistent Reply Menu Keyboard for Typing Bar
+# UI TOOLKIT: Keyboards & Touch Boards
 # ---------------------------------------------------------------------
 def get_main_menu_keyboard():
     return ReplyKeyboardMarkup(
@@ -162,11 +162,14 @@ def get_admin_inline_panel():
 # MANDATORY PROFILE VERIFICATION GUARD
 # ---------------------------------------------------------------------
 async def ensure_profile_completed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Verifies that the user has completed all registration fields. Bypassing is blocked."""
+    """Verifies that the user has completed registration. Admins bypass this check."""
     user = update.effective_user
     if not user:
         return False
         
+    if is_admin(user.id):
+        return True
+
     raw_profile = get_user_profile(user.id)
     profile = dict(raw_profile) if raw_profile else {}
     
@@ -179,8 +182,8 @@ async def ensure_profile_completed(update: Update, context: ContextTypes.DEFAULT
         guard_msg = (
             f"{BOT_BRANDING_HEADER}\n\n"
             f"⚠️ **Registration Required!**\n\n"
-            f"Dear Student, to maintain valid leaderboard rankings, exam performance tracking, "
-            f"and official certificates by **Himanshu Sir**, you must complete your student profile first!\n\n"
+            f"Dear Student, to maintain valid leaderboard rankings and exam performance tracking, "
+            f"you must complete your student profile first!\n\n"
             f"👉 Please type /start to complete your profile now."
         )
         if update.message:
@@ -233,7 +236,6 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📊 **Daily Quota:** `{limit} Questions/day`\n"
                 f"⏳ **Quota Reset In:** `{time_left}` *(at 11:11 PM IST)*\n\n"
                 f"📌 **Quick Navigation:**\n"
-                f"• Tap any touch button below or use the menu bar:\n"
                 f"  └ /quiz — Start a practice test\n"
                 f"  └ /remaininglimit — Check quota & claim +10 bonus\n"
                 f"  └ /hello — Personalized greeting & motivation\n"
@@ -251,10 +253,6 @@ async def start_onboarding(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{BOT_BRANDING_HEADER}\n\n"
         f"🌟 **Welcome to Learn with HiM Quiz Book!**\n"
         f"Master Computer Awareness & Exam PYQs with **Himanshu Sir**.\n\n"
-        f"💡 **Why Registration is Mandatory:**\n"
-        f"• Tracks your accurate daily practice quota & exam analytics\n"
-        f"• Ranks you on the global student leaderboard\n"
-        f"• Ensures non-repeating PYQ selection tailored for your exam!\n\n"
         f"📝 **Student Registration (Step 1/5)**\n"
         f"Please reply with your **Full Name** to setup your official profile:"
     )
@@ -292,7 +290,7 @@ async def target_exam_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"🎯 Selected Target: `{exam_text}`\n\n"
             f"📱 **Mobile Verification (Step 3/5)**\n"
-            f"Tap the button below to verify your phone number (Mandatory):", 
+            f"Tap the button below to share your mobile number securely:", 
             reply_markup=markup, parse_mode="Markdown"
         )
         return PHONE_OTP
@@ -435,6 +433,15 @@ async def claim_bonus_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 #             FAIL-SAFE MASTER ADMIN COMMAND CONTROL PANEL
 # =====================================================================
 
+async def send_admin_response(target, text, reply_markup=None):
+    """Utility to safely deliver admin messages via Message or CallbackQuery context."""
+    if hasattr(target, 'message') and target.message:
+        await target.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    elif hasattr(target, 'edit_message_text'):
+        await target.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    elif hasattr(target, 'reply_text'):
+        await target.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -446,7 +453,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔐 **MASTER ADMIN CONTROL PANEL**\n"
         f"*(Himanshu Sir System Management Portal)* ❤️\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Welcome Admin! Select any administrative command below via touch buttons:\n\n"
+        f"Welcome Admin! Tap any touch button below to execute secret sub-commands instantly:\n\n"
         f"📌 **Available Admin Sub-Commands:**\n"
         f"• `/showcontacts` — View student directory & phone numbers\n"
         f"• `/showmarks` — Comprehensive quiz scores & attempts log\n"
@@ -463,7 +470,7 @@ async def showcontacts_command(update: Update, context: ContextTypes.DEFAULT_TYP
     if not is_admin(update.effective_user.id): return
     users = get_all_users()
     if not users:
-        await update.message.reply_text("📊 No registered students found in database.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No registered students found in database.", reply_markup=get_main_menu_keyboard())
         return
     
     lines = []
@@ -473,17 +480,13 @@ async def showcontacts_command(update: Update, context: ContextTypes.DEFAULT_TYP
         lines.append(f"{idx}. **{escape_markdown(u.get('full_name', 'Student'))}** ({escape_markdown(uname)})\n   └ ID: `{u.get('user_id')}` | Phone: `{phone}` | Target: `{escape_markdown(u.get('target_exam', 'General'))}`")
     
     report = "📱 **ADMIN AUDIT — STUDENT CONTACT DIRECTORY**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" + "\n\n".join(lines)
-    if len(report) > 4000:
-        for chunk in [report[i:i+3800] for i in range(0, len(report), 3800)]:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(report, parse_mode="Markdown")
+    await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
 async def showmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     users = get_all_users()
     if not users:
-        await update.message.reply_text("📊 No quiz records found.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No quiz records found.", reply_markup=get_main_menu_keyboard())
         return
     
     lines = []
@@ -495,21 +498,20 @@ async def showmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(f"{idx}. **{escape_markdown(u.get('full_name', 'Student'))}** (ID: `{uid}`)\n   └ Avg Score: `{avg_score}` | Tests Attempted: `{total_mocks}` | Target: `{escape_markdown(u.get('target_exam', 'General'))}`")
     
     report = "📊 **ADMIN AUDIT — STUDENT QUIZ PERFORMANCE & MARKS**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" + "\n\n".join(lines)
-    if len(report) > 4000:
-        for chunk in [report[i:i+3800] for i in range(0, len(report), 3800)]:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(report, parse_mode="Markdown")
+    await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
 async def showtoppers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
-    await toppersname_handler(update, context)
+    toppers = get_quiz_toppers(limit=10)
+    lines = [f"{idx}. **{escape_markdown(dict(t).get('full_name', 'Student'))}** — Score: `{round(dict(t).get('avg_score', 0.0) or 0.0, 2)}`" for idx, t in enumerate(toppers, start=1)] if toppers else ["No records."]
+    report = f"{BOT_BRANDING_HEADER}\n\n🏆 **Top 10 Leaderboard Scholars**\n\n" + "\n".join(lines)
+    await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
 async def showgender_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     users = get_all_users()
     if not users:
-        await update.message.reply_text("📊 No user data available.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No user data available.", reply_markup=get_main_menu_keyboard())
         return
 
     males, females, others = 0, 0, 0
@@ -522,17 +524,13 @@ async def showgender_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         lines.append(f"{idx}. **{escape_markdown(u.get('full_name', 'Student'))}** — Gender: `{u.get('gender', 'N/A')}`")
 
     summary = f"🚻 **ADMIN DEMOGRAPHICS — GENDER REPORT**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👨 **Male Students:** `{males}`\n👩 **Female Students:** `{females}`\n⚧ **Other:** `{others}`\n👥 **Total Registered:** `{len(users)}`\n\n" + "\n".join(lines)
-    if len(summary) > 4000:
-        for chunk in [summary[i:i+3800] for i in range(0, len(summary), 3800)]:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(summary, parse_mode="Markdown")
+    await send_admin_response(update, summary, reply_markup=get_admin_inline_panel())
 
 async def showage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     users = get_all_users()
     if not users:
-        await update.message.reply_text("📊 No age records available.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No age records available.", reply_markup=get_main_menu_keyboard())
         return
 
     under_18, group_18_25, group_25_plus = 0, 0, 0
@@ -545,17 +543,13 @@ async def showage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(f"{idx}. **{escape_markdown(u.get('full_name', 'Student'))}** — Age: `{age} yrs`")
 
     summary = f"🎂 **ADMIN ANALYTICS — AGE GROUP BREAKDOWN**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n👶 **Under 18 yrs:** `{under_18}`\n🎓 **18–25 yrs:** `{group_18_25}`\n💼 **25+ yrs:** `{group_25_plus}`\n👥 **Total Students:** `{len(users)}`\n\n" + "\n".join(lines)
-    if len(summary) > 4000:
-        for chunk in [summary[i:i+3800] for i in range(0, len(summary), 3800)]:
-            await update.message.reply_text(chunk, parse_mode="Markdown")
-    else:
-        await update.message.reply_text(summary, parse_mode="Markdown")
+    await send_admin_response(update, summary, reply_markup=get_admin_inline_panel())
 
 async def cleardataofuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     users = get_all_users()
     if not users:
-        await update.message.reply_text("📊 No student profiles available to clear.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No student profiles available to clear.", reply_markup=get_main_menu_keyboard())
         return
 
     keyboard = []
@@ -565,13 +559,13 @@ async def cleardataofuser_command(update: Update, context: ContextTypes.DEFAULT_
         keyboard.append([InlineKeyboardButton(f"🗑️ Clear: {name} ({uid})", callback_data=f"adm_clear_user_{uid}")])
 
     markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🗑️ **SELECT A STUDENT TO RESET QUIZ DATA & DAILY QUOTA:**", reply_markup=markup, parse_mode="Markdown")
+    await send_admin_response(update, "🗑️ **SELECT A STUDENT TO RESET QUIZ DATA & DAILY QUOTA:**", reply_markup=markup)
 
 async def increaselimitofuser_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     users = get_all_users()
     if not users:
-        await update.message.reply_text("📊 No student profiles available.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No student profiles available.", reply_markup=get_main_menu_keyboard())
         return
 
     keyboard = []
@@ -583,12 +577,12 @@ async def increaselimitofuser_command(update: Update, context: ContextTypes.DEFA
         keyboard.append([InlineKeyboardButton(f"⚡ +20 Boost: {name} ({boosts}/5 Boosts)", callback_data=f"adm_boost_user_{uid}")])
 
     markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("⚡ **SELECT A STUDENT TO GRANT +20 DAILY QUESTION BOOST:**\n*(Max 5 boosts = +100 extra limit)*", reply_markup=markup, parse_mode="Markdown")
+    await send_admin_response(update, "⚡ **SELECT A STUDENT TO GRANT +20 DAILY QUESTION BOOST:**\n*(Max 5 boosts = +100 extra limit)*", reply_markup=markup)
 
 async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
     if not VERIFIED_SUBSCRIBERS:
-        await update.message.reply_text("📊 No users have claimed subscription bonus today.", reply_markup=get_main_menu_keyboard())
+        await send_admin_response(update, "📊 No users have claimed subscription bonus today.", reply_markup=get_admin_inline_panel())
         return
 
     lines = []
@@ -598,7 +592,7 @@ async def addedsubscribers_command(update: Update, context: ContextTypes.DEFAULT
         lines.append(f"{idx}. **{escape_markdown(p.get('full_name', 'Student'))}** | ID: `{uid}` | Phone: `{p.get('phone_number', 'N/A')}`")
 
     msg = f"🔐 **ADMIN AUDIT — VERIFIED SUBSCRIBERS ADDED ({len(VERIFIED_SUBSCRIBERS)})**\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" + "\n".join(lines)
-    await update.message.reply_text(msg, reply_markup=get_main_menu_keyboard(), parse_mode="Markdown")
+    await send_admin_response(update, msg, reply_markup=get_admin_inline_panel())
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -608,23 +602,29 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     if not is_admin(user_id): return
 
-    fake = type('obj', (object,), {'effective_user': query.from_user, 'message': type('obj', (object,), {'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=query.message.chat_id, text=text, **kwargs)})})
-
-    if data == "adm_cmd_contacts": await showcontacts_command(fake, context)
-    elif data == "adm_cmd_marks": await showmarks_command(fake, context)
-    elif data == "adm_cmd_toppers": await toppersname_handler(fake, context)
-    elif data == "adm_cmd_gender": await showgender_command(fake, context)
-    elif data == "adm_cmd_age": await showage_command(fake, context)
-    elif data == "adm_cmd_clear": await cleardataofuser_command(fake, context)
-    elif data == "adm_cmd_boost": await increaselimitofuser_command(fake, context)
-    elif data == "adm_cmd_subs": await addedsubscribers_command(fake, context)
+    if data == "adm_cmd_contacts":
+        await showcontacts_command(query, context)
+    elif data == "adm_cmd_marks":
+        await showmarks_command(query, context)
+    elif data == "adm_cmd_toppers":
+        await showtoppers_command(query, context)
+    elif data == "adm_cmd_gender":
+        await showgender_command(query, context)
+    elif data == "adm_cmd_age":
+        await showage_command(query, context)
+    elif data == "adm_cmd_clear":
+        await cleardataofuser_command(query, context)
+    elif data == "adm_cmd_boost":
+        await increaselimitofuser_command(query, context)
+    elif data == "adm_cmd_subs":
+        await addedsubscribers_command(query, context)
 
     elif data.startswith("adm_clear_user_"):
         target_uid = int(data.replace("adm_clear_user_", ""))
         reset_user_quiz_data(target_uid)
         profile = get_user_profile(target_uid)
         target_name = profile.get("full_name") if profile else str(target_uid)
-        await query.edit_message_text(f"✅ **DATA RESET SUCCESSFUL!**\n\nAll quiz attempts and bonus logs for **{escape_markdown(target_name)}** (ID: `{target_uid}`) have been cleared!", parse_mode="Markdown")
+        await query.edit_message_text(f"✅ **DATA RESET SUCCESSFUL!**\n\nAll quiz attempts and bonus logs for **{escape_markdown(target_name)}** (ID: `{target_uid}`) have been cleared!", reply_markup=get_admin_inline_panel(), parse_mode="Markdown")
 
     elif data.startswith("adm_boost_user_"):
         target_uid = int(data.replace("adm_boost_user_", ""))
@@ -633,10 +633,10 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         target_name = profile.get("full_name") if profile else str(target_uid)
 
         if not success and code == "MAX_LIMIT_REACHED":
-            await query.edit_message_text(f"🛑 **MAX BOOST LIMIT REACHED!**\n\nUser **{escape_markdown(target_name)}** (ID: `{target_uid}`) has already received 5 boosts (+100 extra questions).", parse_mode="Markdown")
+            await query.edit_message_text(f"🛑 **MAX BOOST LIMIT REACHED!**\n\nUser **{escape_markdown(target_name)}** (ID: `{target_uid}`) has already received 5 boosts (+100 extra questions).", reply_markup=get_admin_inline_panel(), parse_mode="Markdown")
         else:
             new_limit = DAILY_QUESTION_LIMIT + total_extra
-            await query.edit_message_text(f"⚡ **LIMIT BOOST SUCCESSFUL!**\n\nGranted +20 extra questions to **{escape_markdown(target_name)}** (ID: `{target_uid}`).\n\n📊 **Boost Count:** `{new_count}/5` Boosts\n🎯 **New Daily Limit:** `{new_limit}` Questions", parse_mode="Markdown")
+            await query.edit_message_text(f"⚡ **LIMIT BOOST SUCCESSFUL!**\n\nGranted +20 extra questions to **{escape_markdown(target_name)}** (ID: `{target_uid}`).\n\n📊 **Boost Count:** `{new_count}/5` Boosts\n🎯 **New Daily Limit:** `{new_limit}` Questions", reply_markup=get_admin_inline_panel(), parse_mode="Markdown")
 
 # =====================================================================
 #                     FEEDBACK MANAGEMENT SYSTEM
@@ -827,7 +827,6 @@ async def quiz_count_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     count = int(query.data.replace("quiz_count_", ""))
     QUIZ_SETUP_CACHE[user_id] = {"count": count}
     
-    # Updated Timer Menu with 25s and 30s added
     keyboard = [
         [InlineKeyboardButton("⏱ 12s", callback_data="quiz_timer_12"), InlineKeyboardButton("⏱ 15s", callback_data="quiz_timer_15"), InlineKeyboardButton("⏱ 18s", callback_data="quiz_timer_18")],
         [InlineKeyboardButton("⏱ 20s", callback_data="quiz_timer_20"), InlineKeyboardButton("⏱ 25s", callback_data="quiz_timer_25"), InlineKeyboardButton("⏱ 30s", callback_data="quiz_timer_30")]
@@ -946,7 +945,7 @@ async def send_completion_banner(chat_id: int, user_id: int, context: ContextTyp
     accuracy = round((correct / total) * 100, 1) if total > 0 else 0
     date_str = get_formatted_ist_date()
 
-    # Record test completion cleanly to DB so total attempts increment properly
+    # Record test completion cleanly to DB
     record_quiz_result(user_id, questions_attempted=total, correct_answers=correct, score=score)
 
     attempted_today = get_today_attempts(user_id)
