@@ -11,6 +11,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Universal Aliases to guarantee no missing database connection imports anywhere
 get_db = get_db_connection
 
 def init_db():

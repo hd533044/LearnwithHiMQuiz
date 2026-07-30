@@ -470,7 +470,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(panel_msg, reply_markup=get_admin_inline_panel(), parse_mode="Markdown")
 
 async def showcontacts_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     users = get_all_users()
     if not users:
@@ -487,7 +487,7 @@ async def showcontacts_command(update, context: ContextTypes.DEFAULT_TYPE):
     await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
 async def showmarks_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     users = get_all_users()
     if not users:
@@ -506,7 +506,7 @@ async def showmarks_command(update, context: ContextTypes.DEFAULT_TYPE):
     await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
 async def showtoppers_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     toppers = get_quiz_toppers(limit=10)
     lines = [f"{idx}. **{escape_markdown(dict(t).get('full_name', 'Student'))}** — Score: `{round(dict(t).get('avg_score', 0.0) or 0.0, 2)}`" for idx, t in enumerate(toppers, start=1)] if toppers else ["No records."]
@@ -514,7 +514,7 @@ async def showtoppers_command(update, context: ContextTypes.DEFAULT_TYPE):
     await send_admin_response(update, report, reply_markup=get_admin_inline_panel())
 
 async def showgender_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     users = get_all_users()
     if not users:
@@ -534,7 +534,7 @@ async def showgender_command(update, context: ContextTypes.DEFAULT_TYPE):
     await send_admin_response(update, summary, reply_markup=get_admin_inline_panel())
 
 async def showage_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     users = get_all_users()
     if not users:
@@ -554,7 +554,7 @@ async def showage_command(update, context: ContextTypes.DEFAULT_TYPE):
     await send_admin_response(update, summary, reply_markup=get_admin_inline_panel())
 
 async def cleardataofuser_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     users = get_all_users()
     if not users:
@@ -571,7 +571,7 @@ async def cleardataofuser_command(update, context: ContextTypes.DEFAULT_TYPE):
     await send_admin_response(update, "🗑️ **SELECT A STUDENT TO RESET QUIZ DATA & DAILY QUOTA:**", reply_markup=markup)
 
 async def increaselimitofuser_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     users = get_all_users()
     if not users:
@@ -590,7 +590,7 @@ async def increaselimitofuser_command(update, context: ContextTypes.DEFAULT_TYPE
     await send_admin_response(update, "⚡ **SELECT A STUDENT TO GRANT +20 DAILY QUESTION BOOST:**\n*(Max 5 boosts = +100 extra limit)*", reply_markup=markup)
 
 async def addedsubscribers_command(update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id if hasattr(update, 'effective_user') else update.from_user.id
+    user_id = update.effective_user.id if hasattr(update, 'effective_user') and update.effective_user else update.from_user.id
     if not is_admin(user_id): return
     if not VERIFIED_SUBSCRIBERS:
         await send_admin_response(update, "📊 No users have claimed subscription bonus today.", reply_markup=get_admin_inline_panel())
