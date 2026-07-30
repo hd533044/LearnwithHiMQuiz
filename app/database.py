@@ -10,7 +10,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# Alias get_db to get_db_connection to fix the ImportError in app/stats.py
+# Aliases to prevent any missing import errors across modules
 get_db = get_db_connection
 
 def init_db():
@@ -95,19 +95,27 @@ def get_all_users():
 def get_today_attempts(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # IST Date String
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
-    
     cursor.execute('''
         SELECT SUM(questions_attempted) as total 
         FROM quiz_attempts 
         WHERE user_id = ? AND attempt_date = ?
     ''', (user_id, ist_today))
-    
     row = cursor.fetchone()
     conn.close()
     return row['total'] if row and row['total'] else 0
+
+def increment_today_attempts(user_id, count=1, correct=0, score=0.0):
+    """Logs quiz attempts into the database to track daily quotas and scores."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+    cursor.execute('''
+        INSERT INTO quiz_attempts (user_id, questions_attempted, correct_answers, score, attempt_date)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, count, correct, score, ist_today))
+    conn.commit()
+    conn.close()
 
 def reset_user_quiz_data(user_id):
     conn = get_db_connection()
@@ -129,7 +137,6 @@ def boost_user_daily_quota(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
-    
     cursor.execute("SELECT * FROM bonus_quota WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     
