@@ -11,7 +11,6 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-# Universal Aliases to guarantee no missing database connection imports anywhere
 get_db = get_db_connection
 
 def init_db():
@@ -29,7 +28,7 @@ def init_db():
             target_exam TEXT,
             age INTEGER,
             gender TEXT,
-            is_verified INTEGER DEFAULT 1,
+            is_verified INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -43,6 +42,7 @@ def init_db():
             correct_answers INTEGER,
             score REAL,
             attempt_date DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
     ''')
@@ -72,7 +72,7 @@ def init_db():
     conn.close()
 
 def save_user_profile(user_id, full_name, username, phone, target_exam, age, gender):
-    """Saves or updates a student profile."""
+    """Saves or updates a student profile upon completing registration."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -123,7 +123,7 @@ def get_today_attempts(user_id):
     return row['total'] if row and row['total'] else 0
 
 def increment_today_attempts(user_id, count=1, correct=0, score=0.0):
-    """Logs quiz attempts into database to track daily quotas and scores."""
+    """Logs completed quiz attempts into database to track daily quotas, tests count, and scores."""
     conn = get_db_connection()
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
@@ -134,14 +134,28 @@ def increment_today_attempts(user_id, count=1, correct=0, score=0.0):
     conn.commit()
     conn.close()
 
-# Wrapper functions for compatibility across different module import styles
 def record_quiz_result(user_id, questions_attempted, correct_answers, score):
     increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
 
 def save_quiz_result(user_id, questions_attempted, correct_answers, score):
     increment_today_attempts(user_id, count=questions_attempted, correct=correct_answers, score=score)
 
-# Non-Repeating Question Tracking Functions (All possible function names covered)
+def get_user_test_history(user_id):
+    """Retrieves full quiz performance statistics for a user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT COUNT(*) as total_quizzes, 
+               SUM(questions_attempted) as total_questions,
+               SUM(correct_answers) as total_correct,
+               AVG(score) as avg_score
+        FROM quiz_attempts 
+        WHERE user_id = ?
+    ''', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else {"total_quizzes": 0, "total_questions": 0, "total_correct": 0, "avg_score": 0.0}
+
 def get_seen_question_ids(user_id):
     """Returns a set of question IDs already attempted by the user."""
     conn = get_db_connection()
@@ -174,16 +188,13 @@ def save_seen_question_ids(user_id, question_ids):
     conn.commit()
     conn.close()
 
-# Exact function required by quiz_engine.py
 def mark_questions_as_seen(user_id, question_ids):
-    """Marks question IDs as seen (wrapper for quiz_engine compatibility)."""
     if isinstance(question_ids, (list, set, tuple)):
         save_seen_question_ids(user_id, question_ids)
     else:
         save_seen_question_id(user_id, question_ids)
 
 def mark_question_as_seen(user_id, question_id):
-    """Single item alias for mark_questions_as_seen."""
     save_seen_question_id(user_id, question_id)
 
 def reset_user_quiz_data(user_id):
@@ -206,7 +217,7 @@ def get_user_bonus_quota(user_id):
     return dict(row) if row else {"boost_count": 0, "extra_questions": 0}
 
 def boost_user_daily_quota(user_id):
-    """Grants +20 extra daily limit boost (Max 5 boosts total)."""
+    """Grants +20 extra daily limit boost (Max 5 boosts total = +100 extra questions)."""
     conn = get_db_connection()
     cursor = conn.cursor()
     ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
